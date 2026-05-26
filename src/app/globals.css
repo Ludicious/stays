@@ -278,6 +278,87 @@ button { font-family: var(--font-body); cursor: pointer; }
   text-underline-offset: 2px;
 }
 
+/* ── Gate code editor ───────────────────────────────────────────── */
+.gate-code-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.gate-code-input {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  letter-spacing: 0.08em;
+  padding: 6px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  width: 160px;
+  outline: none;
+  background: var(--surface);
+  color: var(--text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.gate-code-input:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(201, 168, 76, 0.15);
+}
+.edit-btn {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.edit-btn:hover { color: var(--text-2); border-color: var(--border-strong); }
+.add-field-btn {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--gold-dark);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.add-field-btn:hover { opacity: 0.75; }
+.btn-sm { font-size: 12px !important; padding: 5px 12px !important; }
+
+/* ── Stay detail page ────────────────────────────────────────────── */
+.detail-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+  transition: color 0.15s;
+}
+.detail-back:hover { color: var(--text-2); }
+.detail-status {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+.detail-status.stayed        { background: #F0FDF4; color: #15803D; border-color: #BBF7D0; }
+.detail-status.booked        { background: #EFF6FF; color: #1D4ED8; border-color: #BFDBFE; }
+.detail-status.deposit-paid  { background: var(--amber-bg); color: var(--amber); border-color: #FDE68A; }
+.detail-status.paid-in-full  { background: #F0FDF4; color: #15803D; border-color: #BBF7D0; }
+.detail-status.cancelled     { background: var(--red-bg); color: var(--red); border-color: #FECACA; }
+
 /* ── Details toggle ─────────────────────────────────────────────── */
 .details-toggle-btn {
   font-size: 13px;

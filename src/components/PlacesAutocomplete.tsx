@@ -39,7 +39,7 @@ export default function PlacesAutocomplete({
   } = usePlacesAutocomplete({
     requestOptions: {
       componentRestrictions: { country: ['us', 'ca'] },
-      types: ['establishment'],
+      // No 'types' restriction — allows campgrounds, addresses, and free-form names
     },
     debounce: 300,
     // Use the externally controlled value if provided
@@ -107,6 +107,9 @@ export default function PlacesAutocomplete({
         disabled={!ready}
         placeholder={ready ? placeholder : 'Loading map data…'}
         autoComplete="off"
+        onKeyDown={e => {
+          if (e.key === 'Escape') clearSuggestions();
+        }}
       />
       {status === 'OK' && data.length > 0 && (
         <ul className="autocomplete-dropdown" role="listbox">

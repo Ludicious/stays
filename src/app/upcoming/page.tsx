@@ -3,8 +3,8 @@ import Link from 'next/link';
 import type { RowDataPacket } from 'mysql2';
 import { getPool } from '@/lib/db';
 import type { Stay } from '@/lib/types';
-import CopyButton from '@/components/CopyButton';
 import DetailsToggle from '@/components/DetailsToggle';
+import GateCodeEditor from '@/components/GateCodeEditor';
 
 export const metadata: Metadata = { title: 'Upcoming' };
 
@@ -140,18 +140,13 @@ function HeroCard({ stay, isCurrent }: { stay: Stay; isCurrent: boolean }) {
           </div>
         )}
 
-        {/* Gate code */}
-        {stay.gate_code && (
-          <div className="info-row">
-            <span className="info-label">Gate code</span>
-            <span className="info-value">
-              <span className="gate-code-row">
-                <span className="gate-code">{stay.gate_code}</span>
-                <CopyButton text={stay.gate_code} />
-              </span>
-            </span>
-          </div>
-        )}
+        {/* Gate code — always shown so it can be added at check-in */}
+        <div className="info-row">
+          <span className="info-label">Gate code</span>
+          <span className="info-value">
+            <GateCodeEditor stayId={stay.id} initialCode={stay.gate_code} />
+          </span>
+        </div>
 
         {/* Check-in */}
         {(stay.check_in_time || stay.check_in_instructions) && (

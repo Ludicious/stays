@@ -11,10 +11,10 @@ import type { StayType } from '@/lib/types';
 
 const STAY_TYPES: StayType[] = ['Paid', 'Boondocking', 'Harvest Host', 'Free'];
 
-// Add one day to a YYYY-MM-DD string
-function addDay(dateStr: string): string {
+// Add N days to a YYYY-MM-DD string
+function addDays(dateStr: string, n: number): string {
   const d = new Date(dateStr + 'T00:00:00');
-  d.setDate(d.getDate() + 1);
+  d.setDate(d.getDate() + n);
   return d.toISOString().slice(0, 10);
 }
 
@@ -28,6 +28,7 @@ export default function QuickAddPage() {
 
   const [campgroundName, setCampgroundName] = useState('');
   const [arrival,        setArrival]        = useState(todayStr());
+  const [nights,         setNights]         = useState(1);
   const [stayType,       setStayType]       = useState<StayType>('Paid');
   const [placeData,      setPlaceData]      = useState<PlaceSelection | null>(null);
   const [submitting,     setSubmitting]     = useState(false);
@@ -63,7 +64,7 @@ export default function QuickAddPage() {
     const body = {
       name:         campgroundName.trim(),
       arrival,
-      departure:    addDay(arrival),
+      departure:    addDays(arrival, Math.max(nights, 1)),
       stay_type:    stayType,
       status:       'Booked',
       // From Places selection (if any)
@@ -112,19 +113,36 @@ export default function QuickAddPage() {
           />
         </div>
 
-        {/* Arrival date */}
-        <div className="form-group">
-          <label className="form-label" htmlFor="arrival">
-            Arrival date
-          </label>
-          <input
-            id="arrival"
-            type="date"
-            className="form-input"
-            value={arrival}
-            onChange={e => setArrival(e.target.value)}
-            required
-          />
+        {/* Arrival date + Nights — side by side */}
+        <div style={{ display: 'flex', gap: 12 }}>
+          <div className="form-group" style={{ flex: 2 }}>
+            <label className="form-label" htmlFor="arrival">
+              Arrival date
+            </label>
+            <input
+              id="arrival"
+              type="date"
+              className="form-input"
+              value={arrival}
+              onChange={e => setArrival(e.target.value)}
+              required
+            />
+          </div>
+          <div className="form-group" style={{ flex: 1 }}>
+            <label className="form-label" htmlFor="nights">
+              Nights
+            </label>
+            <input
+              id="nights"
+              type="number"
+              className="form-input"
+              value={nights}
+              min={1}
+              max={365}
+              onChange={e => setNights(Math.max(1, parseInt(e.target.value) || 1))}
+              required
+            />
+          </div>
         </div>
 
         {/* Stay type */}
@@ -162,7 +180,7 @@ export default function QuickAddPage() {
           textAlign: 'center',
         }}
       >
-        Departure defaults to next day — edit the full record in Session 3.
+        Full edit (confirmation #, gate code, etc.) available from the stay detail page.
       </p>
     </main>
   );

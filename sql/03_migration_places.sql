@@ -1,0 +1,4 @@
+ALTER TABLE stays
+  ADD COLUMN lat      DECIMAL(10,7) NULL AFTER full_address,
+  ADD COLUMN lng      DECIMAL(10,7) NULL AFTER lat,
+  ADD COLUMN place_id VARCHAR(255)  NULL AFTER lng;

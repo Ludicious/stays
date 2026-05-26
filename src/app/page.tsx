@@ -1,7 +1,5 @@
+import { redirect } from 'next/navigation';
+
 export default function Home() {
-  return (
-    <main>
-      <p>Stays — coming soon. Database setup in progress.</p>
-    </main>
-  );
+  redirect('/upcoming');
 }

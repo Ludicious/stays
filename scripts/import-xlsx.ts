@@ -27,7 +27,12 @@ function num(v: unknown): number {
 
 function toDate(v: unknown): string | null {
   if (!v) return null;
-  const d = v instanceof Date ? v : new Date(String(v));
+  // ExcelJS returns formula cells as { formula, result, date1904 } objects
+  const resolved = (v && typeof v === 'object' && 'result' in v)
+    ? (v as { result: unknown }).result
+    : v;
+  if (!resolved) return null;
+  const d = resolved instanceof Date ? resolved : new Date(String(resolved));
   if (isNaN(d.getTime())) return null;
   return d.toISOString().slice(0, 10); // YYYY-MM-DD
 }
@@ -88,7 +93,24 @@ async function main() {
   sheet.eachRow((row, rowNum) => {
     if (rowNum <= HEADER_ROW) return; // skip header block
 
-    const get = (name: string) => row.getCell(colIndex[name])?.value;
+    // Unwrap ExcelJS cell values:
+    //   { formula, result }    → result  (formula cells with cached value)
+    //   { sharedFormula, ... } → result if present, else null (shared formula ref)
+    //   { error: '#...' }      → null   (error cells)
+    const get = (name: string) => {
+      const v = row.getCell(colIndex[name])?.value;
+      if (!v || typeof v !== 'object') return v;
+      if ('result' in v) return (v as { result: unknown }).result;
+      if ('sharedFormula' in v) {
+        const sv = v as { sharedFormula: string; result?: unknown };
+        return sv.result !== undefined ? sv.result : null;
+      }
+      if ('error' in v) return null;
+      return v;
+    };
+
+    // Skip blank/trailing rows
+    if (!str(get('Resort / Campground')) && !get('Arrival')) return;
 
     const rawStayType = str(get('Stay Type'));
     let stayType = rawStayType;
@@ -145,6 +167,10 @@ async function main() {
   });
 
   try {
+    // Truncate first so the script is safely re-runnable
+    await conn.query('TRUNCATE TABLE stays');
+    console.log('stays table cleared.\n');
+
     const sql = `
       INSERT INTO stays
         (name, city, state, country, full_address, arrival, departure,
@@ -156,7 +182,7 @@ async function main() {
 
     let inserted = 0;
     for (const r of rows) {
-      await conn.execute(sql, [
+      await conn.query(sql, [
         r.name, r.city, r.state, r.country, r.full_address,
         r.arrival, r.departure, r.stay_type, r.program, r.status,
         r.total_charged, r.deposit_paid,

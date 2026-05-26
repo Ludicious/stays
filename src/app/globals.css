@@ -494,3 +494,195 @@ button { font-family: var(--font-body); cursor: pointer; }
 .autocomplete-item:hover, .autocomplete-item:focus { background: var(--surface-2); outline: none; }
 .ac-main   { font-size: 14px; font-weight: 500; color: var(--text); }
 .ac-second { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+/* ── Inline field editing ────────────────────────────────────────── */
+.inline-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.inline-edit-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.inline-input {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  outline: none;
+  flex: 1;
+  min-width: 80px;
+  max-width: 280px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.inline-input:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(201, 168, 76, 0.15);
+}
+.inline-textarea {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  outline: none;
+  resize: vertical;
+  min-height: 56px;
+  width: 100%;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.inline-textarea:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(201, 168, 76, 0.15);
+}
+.inline-select {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.inline-select:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(201, 168, 76, 0.15);
+}
+.inline-error {
+  font-size: 12px;
+  color: var(--red);
+}
+
+/* Name field editing — larger input to match the h1 */
+.name-edit-block { margin-bottom: 16px; }
+.name-inline-input {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  max-width: 100%;
+  width: 100%;
+}
+
+/* ── Danger button ───────────────────────────────────────────────── */
+.btn-danger {
+  background: var(--red);
+  color: #fff;
+  border: none;
+}
+.btn-danger:hover    { background: #b91c1c; }
+.btn-danger:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Delete stay button — de-emphasised red text */
+.delete-stay-btn {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+.delete-stay-btn:hover {
+  color: var(--red);
+  background: var(--red-bg);
+}
+
+/* ── Confirmation dialog ─────────────────────────────────────────── */
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+  padding: 24px;
+}
+.confirm-dialog {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 28px 24px 24px;
+  max-width: 360px;
+  width: 100%;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.25);
+}
+
+/* ── Stays history table ─────────────────────────────────────────── */
+.page-wide {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px var(--page-pad) 48px;
+}
+.stays-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.stays-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  min-width: 620px;
+}
+.stays-table thead th {
+  background: var(--surface-2);
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s;
+}
+.stays-table thead th:hover { color: var(--text-2); }
+.stays-table thead th.sorted { color: var(--gold-dark); }
+.sort-indicator {
+  font-size: 10px;
+  opacity: 0.6;
+}
+.stays-table thead th.sorted .sort-indicator { opacity: 1; }
+.stays-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  color: var(--text);
+}
+.stays-table tbody tr:last-child td { border-bottom: none; }
+.stays-table tbody tr {
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.stays-table tbody tr:hover  { background: var(--surface-2); }
+.stays-table tbody tr:focus  { outline: 2px solid var(--gold); outline-offset: -2px; }
+
+/* Column-specific widths */
+.td-date { white-space: nowrap; color: var(--text-2); }
+.td-name { font-weight: 500; }
+.td-loc  { color: var(--text-2); white-space: nowrap; }
+.td-num  { text-align: right; font-variant-numeric: tabular-nums; }
+
+.balance-due {
+  color: var(--red);
+  font-weight: 600;
+}

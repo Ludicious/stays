@@ -51,6 +51,9 @@ export default function StayDetailClient({ stay: initialStay }: { stay: Stay }) 
   const [showDelete,   setShowDelete]  = useState(false);
   const [deleting,     setDeleting]    = useState(false);
   const [deleteError,  setDeleteError] = useState<string | null>(null);
+  const [showMarkPaid,  setShowMarkPaid]  = useState(false);
+  const [markingPaid,   setMarkingPaid]   = useState(false);
+  const [markPaidError, setMarkPaidError] = useState<string | null>(null);
 
   // ── Edit handlers ────────────────────────────────────────────────
 
@@ -126,6 +129,29 @@ export default function StayDetailClient({ stay: initialStay }: { stay: Stay }) 
       setError('Could not save location — try again.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleMarkPaid = async () => {
+    setMarkingPaid(true);
+    setMarkPaidError(null);
+    try {
+      const body: Record<string, unknown> = { deposit_paid: stay.total_charged };
+      if (stay.status === 'Booked' || stay.status === 'Deposit Paid') {
+        body.status = 'Paid in Full';
+      }
+      const res = await fetch(`/api/stays/${stay.id}`, {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error('failed');
+      setStay(await res.json());
+      setShowMarkPaid(false);
+    } catch {
+      setMarkPaidError('Could not update — try again.');
+    } finally {
+      setMarkingPaid(false);
     }
   };
 
@@ -577,9 +603,21 @@ export default function StayDetailClient({ stay: initialStay }: { stay: Stay }) 
             <div className="info-row">
               <span className="info-label">Balance</span>
               <span className="info-value">
-                <span className={`badge ${stay.status === 'Deposit Paid' ? 'badge-amber' : 'badge-red'}`}>
-                  ${stay.balance_due.toFixed(2)}
+                <span className="inline-edit-row" style={{ gap: 10 }}>
+                  <span className={`badge ${stay.status === 'Deposit Paid' ? 'badge-amber' : 'badge-red'}`}>
+                    ${stay.balance_due.toFixed(2)}
+                  </span>
+                  {stay.status !== 'Cancelled' && stay.status !== 'Paid in Full' && (
+                    <button className="btn-mark-paid" onClick={() => setShowMarkPaid(true)}>
+                      Mark as Paid in Full
+                    </button>
+                  )}
                 </span>
+                {markPaidError && (
+                  <span className="inline-error" style={{ display: 'block', marginTop: 4 }}>
+                    {markPaidError}
+                  </span>
+                )}
               </span>
             </div>
           )}
@@ -617,6 +655,37 @@ export default function StayDetailClient({ stay: initialStay }: { stay: Stay }) 
           Delete stay
         </button>
       </div>
+
+      {/* Mark as Paid in Full modal */}
+      {showMarkPaid && (
+        <div className="dialog-backdrop" onClick={() => setShowMarkPaid(false)}>
+          <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
+            <p style={{ fontWeight: 600, fontSize: 16, marginBottom: 6 }}>
+              Mark {stay.name} as paid in full?
+            </p>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 20 }}>
+              Sets deposit paid to ${stay.total_charged.toFixed(2)}.
+              {(stay.status === 'Booked' || stay.status === 'Deposit Paid') &&
+                ' Status will change to Paid in Full.'}
+            </p>
+            {markPaidError && (
+              <p style={{ fontSize: 13, color: 'var(--red)', marginBottom: 12 }}>{markPaidError}</p>
+            )}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost" onClick={() => setShowMarkPaid(false)}>
+                Cancel
+              </button>
+              <button
+                className="btn btn-success"
+                onClick={handleMarkPaid}
+                disabled={markingPaid}
+              >
+                {markingPaid ? 'Saving…' : 'Mark as Paid in Full'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete confirmation modal */}
       {showDelete && (

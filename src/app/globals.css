@@ -601,6 +601,27 @@ button { font-family: var(--font-body); cursor: pointer; }
   background: var(--red-bg);
 }
 
+/* Mark as Paid in Full — green secondary button */
+.btn-mark-paid {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--green);
+  background: var(--green-bg);
+  border: 1px solid #86efac;
+  border-radius: var(--radius-sm);
+  padding: 3px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.btn-mark-paid:hover { background: #bbf7d0; }
+
+/* Success button — used in the Mark as Paid modal */
+.btn-success          { background: var(--green); color: #fff; border: none; }
+.btn-success:hover    { background: #166534; }
+.btn-success:disabled { opacity: 0.6; cursor: not-allowed; }
+
 /* ── Confirmation dialog ─────────────────────────────────────────── */
 .dialog-backdrop {
   position: fixed;

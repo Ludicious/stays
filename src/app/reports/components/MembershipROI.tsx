@@ -75,11 +75,13 @@ export default function MembershipROI({ data, year }: Props) {
       </div>
 
       <p className="report-footnote">
-        Avg paid $/night used for calculations:{' '}
+        Avg paid $/night used for Thousand Trails calculation:{' '}
         <strong>{fmtD(avgPaidPerNight)}</strong>.{' '}
-        Unlimited-night memberships (e.g. Thousand Trails): savings = nights × avg paid rate − total fees.{' '}
-        Discount memberships (e.g. KOA, Good Sam): savings = 10% of spend at that program − total fees.
+        Unlimited-night memberships (Thousand Trails): savings = nights × avg paid rate − total fees.{' '}
+        Discount memberships (KOA, Good Sam): savings = 10% of pre-discount spend − total fees.
         Fees multiplied by {periodLabel} of data.
+        <br />
+        <em>Spend reflects post-discount amounts. Discount savings are reverse-calculated from the pre-discount equivalent.</em>
       </p>
     </div>
   );

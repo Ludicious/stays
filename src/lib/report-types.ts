@@ -15,16 +15,21 @@ export const YEAR_COLORS = ['#0F2238', '#C9A84C', '#4d7c0f', '#7c3aed', '#dc2626
 
 /* ── Data interfaces ────────────────────────────────────────────── */
 export interface BigPictureData {
-  totalNights:        number;
-  totalSpend:         number;
-  avgCostPaidOnly:    number;
-  avgCostAllStays:    number;
-  freeNightsPercent:  number;
-  mostExpensiveStay:  { id: number; name: string; totalCharged: number } | null;
+  totalNights:           number;
+  totalSpend:            number;
+  avgCostPaidOnly:       number;
+  avgCostAllStays:       number;
+  freeNightsPercent:     number;
+  mostExpensiveStay:     { id: number; name: string; totalCharged: number } | null;
+  mostExpensivePerNight: { id: number; name: string; perNight: number } | null;
+  cheapestPaidPerNight:  { id: number; name: string; perNight: number } | null;
+  outstandingBalance:    number;   // live — not filtered by year
 }
 
 export interface StayTypeData {
-  pie:           { type: string; nights: number; percent: number }[];
+  // pct = 0–100 stored in our data; 'percent' is intentionally avoided to
+  // prevent collision with recharts' own computed percent (0–1) on label props.
+  pie:           { type: string; nights: number; pct: number }[];
   avgCostByType: { type: string; avgCost: number }[];
 }
 

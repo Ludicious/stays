@@ -3,7 +3,7 @@
 import { useRef } from 'react';
 import {
   BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, LineChart, Line, Legend,
+  ResponsiveContainer, Legend,
 } from 'recharts';
 import ExportButton from './ExportButton';
 import { YEAR_COLORS } from '@/lib/report-types';
@@ -15,9 +15,9 @@ interface Props {
 }
 
 export default function Trends({ data, year }: Props) {
-  const yearBarRef    = useRef<HTMLDivElement>(null);
-  const monthLineRef  = useRef<HTMLDivElement>(null);
-  const monthBarRef   = useRef<HTMLDivElement>(null);
+  const yearBarRef   = useRef<HTMLDivElement>(null);
+  const monthBarRef  = useRef<HTMLDivElement>(null);
+  const monthGrpRef  = useRef<HTMLDivElement>(null);
 
   const tickStyle = { fontSize: 12, fontFamily: 'DM Sans, sans-serif' };
 
@@ -65,7 +65,7 @@ export default function Trends({ data, year }: Props) {
       <div style={{ marginBottom: 32 }}>
         <div className="chart-panel-header">
           <span className="chart-title">Annual spend by year</span>
-          <ExportButton targetRef={yearBarRef} filename={`stays-trends-years-${year}`} />
+          <ExportButton targetRef={yearBarRef} filename={`stays-trends-years-all`} />
         </div>
         <div ref={yearBarRef} className="chart-bg" style={{ padding: 8 }}>
           <ResponsiveContainer width="100%" height={240}>
@@ -90,16 +90,21 @@ export default function Trends({ data, year }: Props) {
         </div>
       </div>
 
-      {/* Monthly by year line chart */}
+      {/* Monthly by year — grouped bar chart */}
       <div>
         <div className="chart-panel-header">
           <span className="chart-title">Monthly spend by year</span>
-          <ExportButton targetRef={monthLineRef} filename={`stays-trends-monthly-all`} />
+          <ExportButton targetRef={monthGrpRef} filename={`stays-trends-monthly-all`} />
         </div>
-        <div ref={monthLineRef} className="chart-bg" style={{ padding: 8 }}>
-          <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={data.monthlyByYear} margin={{ top: 16, right: 16, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+        <div ref={monthGrpRef} className="chart-bg" style={{ padding: 8 }}>
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart
+              data={data.monthlyByYear}
+              margin={{ top: 16, right: 16, left: 0, bottom: 0 }}
+              barCategoryGap="20%"
+              barGap={2}
+            >
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
               <XAxis dataKey="month" tick={tickStyle} axisLine={false} tickLine={false} />
               <YAxis
                 tickFormatter={v => `$${v}`}
@@ -109,19 +114,21 @@ export default function Trends({ data, year }: Props) {
                 width={70}
               />
               <Tooltip formatter={(v, name) => [`$${Number(v).toLocaleString()}`, String(name)]} />
-              <Legend wrapperStyle={{ fontSize: 12, fontFamily: 'DM Sans, sans-serif' }} />
+              <Legend
+                verticalAlign="top"
+                wrapperStyle={{ fontSize: 12, fontFamily: 'DM Sans, sans-serif', paddingBottom: 8 }}
+              />
               {data.years.map((yr, i) => (
-                <Line
+                <Bar
                   key={yr}
-                  type="monotone"
                   dataKey={yr}
-                  stroke={YEAR_COLORS[i % YEAR_COLORS.length]}
-                  strokeWidth={2}
-                  dot={false}
+                  fill={YEAR_COLORS[i % YEAR_COLORS.length]}
+                  radius={[2, 2, 0, 0]}
                   isAnimationActive={false}
+                  maxBarSize={24}
                 />
               ))}
-            </LineChart>
+            </BarChart>
           </ResponsiveContainer>
         </div>
       </div>

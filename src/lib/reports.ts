@@ -14,6 +14,14 @@ export type {
 } from '@/lib/report-types';
 export { STAY_TYPE_COLORS, YEAR_COLORS } from '@/lib/report-types';
 
+/* ── Program aliases ─────────────────────────────────────────────
+ * Maps membership table `name` → actual `program` value in stays table.
+ * Only entries that differ need to be listed.
+ * ─────────────────────────────────────────────────────────────── */
+const PROGRAM_MAP: Record<string, string> = {
+  'KOA Rewards': 'KOA',
+};
+
 /* ── Helpers ────────────────────────────────────────────────────── */
 const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -57,6 +65,7 @@ export async function computeReports(year: string): Promise<ReportData> {
     .reduce((sum, s) => sum + (s.nights || 0), 0);
   const freeNightsPercent = totalNights > 0 ? (freeNights / totalNights) * 100 : 0;
 
+  // Most expensive stay (total charge)
   let mostExpensiveStay: BigPictureData['mostExpensiveStay'] = null;
   for (const s of filteredStays) {
     if (
@@ -67,9 +76,33 @@ export async function computeReports(year: string): Promise<ReportData> {
     }
   }
 
+  // Most expensive + cheapest per-night (paid stays with nights > 0 only)
+  const eligiblePaid = filteredStays.filter(s => (s.total_charged || 0) > 0 && (s.nights || 0) > 0);
+  let mostExpensivePerNight: BigPictureData['mostExpensivePerNight'] = null;
+  let cheapestPaidPerNight:  BigPictureData['cheapestPaidPerNight']  = null;
+  for (const s of eligiblePaid) {
+    const rate = s.total_charged / s.nights;
+    if (!mostExpensivePerNight || rate > mostExpensivePerNight.perNight) {
+      mostExpensivePerNight = { id: s.id, name: s.name, perNight: rate };
+    }
+    if (!cheapestPaidPerNight || rate < cheapestPaidPerNight.perNight) {
+      cheapestPaidPerNight = { id: s.id, name: s.name, perNight: rate };
+    }
+  }
+
+  // Outstanding balance — live from today, NOT filtered by year
+  const today = new Date().toISOString().slice(0, 10);
+  const outstandingBalance = allStays
+    .filter(s =>
+      (s.status === 'Booked' || s.status === 'Deposit Paid') &&
+      s.departure >= today
+    )
+    .reduce((sum, s) => sum + (s.balance_due || 0), 0);
+
   const bigPicture: BigPictureData = {
     totalNights, totalSpend, avgCostPaidOnly, avgCostAllStays,
     freeNightsPercent, mostExpensiveStay,
+    mostExpensivePerNight, cheapestPaidPerNight, outstandingBalance,
   };
 
   /* ── Stay Types ───────────────────────────────────────────────── */
@@ -82,10 +115,11 @@ export async function computeReports(year: string): Promise<ReportData> {
     });
   }
 
+  // pct is named to avoid collision with recharts' computed 'percent' (0–1) on label props
   const pie = Array.from(typeMap.entries())
     .map(([type, { nights }]) => ({
       type, nights,
-      percent: totalNights > 0 ? (nights / totalNights) * 100 : 0,
+      pct: totalNights > 0 ? (nights / totalNights) * 100 : 0,
     }))
     .sort((a, b) => b.nights - a.nights);
 
@@ -166,14 +200,17 @@ export async function computeReports(year: string): Promise<ReportData> {
     : 0;
 
   const membershipRowsComputed: MembershipRow[] = memberships.map(m => {
-    const mStays             = filteredStays.filter(s => s.program === m.name);
+    // Resolve the program alias (e.g. "KOA Rewards" → "KOA")
+    const lookupProgram = PROGRAM_MAP[m.name] ?? m.name;
+    const mStays             = filteredStays.filter(s => s.program === lookupProgram);
     const nightsUsed         = mStays.reduce((sum, s) => sum + (s.nights || 0), 0);
     const mSpend             = mStays.reduce((sum, s) => sum + (s.total_charged || 0), 0);
     const effectiveAnnualFee = (m.annual_fee || 0) * yearsCount;
 
     const isDiscount = (m.discount_desc ?? '').includes('%');
     const estSavings = isDiscount
-      ? 0.10 * mSpend - effectiveAnnualFee
+      // DB stores post-discount amounts; reverse-calculate pre-discount to find true savings
+      ? (mSpend / 0.90) * 0.10 - effectiveAnnualFee
       : nightsUsed * avgPaidPerNight - effectiveAnnualFee;
 
     const effectivePerNight = nightsUsed > 0 ? effectiveAnnualFee / nightsUsed : null;
@@ -195,12 +232,13 @@ export async function computeReports(year: string): Promise<ReportData> {
     yearsCount,
   };
 
-  /* ── Stay Length Buckets ──────────────────────────────────────── */
+  /* ── Stay Length Buckets (Paid stays only) ────────────────────── */
   const bucketTotals = new Map<string, { spend: number; nights: number; count: number }>();
   BUCKETS.forEach(b => bucketTotals.set(b, { spend: 0, nights: 0, count: 0 }));
 
+  // Harvest Host excluded — only paid campground stays show the nightly-rate pattern
   const eligibleLengthStays = filteredStays.filter(
-    s => (s.stay_type === 'Paid' || s.stay_type === 'Harvest Host') &&
+    s => s.stay_type === 'Paid' &&
          (s.total_charged || 0) > 0 && (s.nights || 0) > 0
   );
 

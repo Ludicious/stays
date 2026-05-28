@@ -67,7 +67,11 @@ export default function StayLength({ data, year }: Props) {
       )}
 
       <p className="report-footnote">
-        Boondocking and free stays excluded. Only Paid and Harvest Host stays with a charge are included.
+        Boondocking, free, and Harvest Host stays excluded. Only paid campground stays included — this chart
+        shows whether longer paid stays unlock better nightly rates.
+        <br />
+        Short transit stays and medium-length destination stays cost about the same; only stays of a week
+        or more meaningfully lower the nightly rate.
       </p>
     </div>
   );

@@ -19,6 +19,7 @@ export default function Nav() {
       <div className="nav-links">
         <Link href="/upcoming"  className={active('/upcoming')}>Upcoming</Link>
         <Link href="/stays"     className={active('/stays')}>Stays</Link>
+        <Link href="/reports"   className={active('/reports')}>Reports</Link>
         <Link href="/quick-add" className={active('/quick-add')}>Quick Add</Link>
       </div>
     </nav>

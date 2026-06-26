@@ -35,15 +35,19 @@ export async function POST(request: NextRequest) {
     );
     const existing = existingRows as { id: number; name: string; arrival: string }[];
 
-    // Dedup: same name (case-insensitive) + arrival within 3 days
+    // Dedup: same name (case-insensitive) + exact same arrival date.
+    // A 3-day window caused false positives for repeat visits to the same campground
+    // on different trips — same day is the only reliable signal of a true re-import.
     const stays: ParsedStay[] = parsed.map(stay => {
       const lowerName = stay.name.toLowerCase().trim();
-      const arrMs     = new Date(stay.arrival).getTime();
 
       for (const ex of existing) {
         if (ex.name.toLowerCase().trim() !== lowerName) continue;
-        const diffDays = Math.abs(arrMs - new Date(ex.arrival).getTime()) / 86_400_000;
-        if (diffDays <= 3) {
+        // Compare as date strings (both are YYYY-MM-DD) — no Date object needed
+        const exDate = typeof ex.arrival === 'string'
+          ? ex.arrival.slice(0, 10)
+          : new Date(ex.arrival as unknown as Date).toISOString().slice(0, 10);
+        if (exDate === stay.arrival) {
           return {
             ...stay,
             is_duplicate:         true,

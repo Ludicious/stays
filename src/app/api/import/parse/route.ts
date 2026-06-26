@@ -1,0 +1,70 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { parseImport } from '@/lib/import-parser';
+import { getPool } from '@/lib/db';
+import type { RowDataPacket } from 'mysql2';
+import type { ParsedStay, ParseResponse } from '@/lib/import-types';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+
+export async function POST(request: NextRequest) {
+  try {
+    const formData = await request.formData();
+    const file     = formData.get('file') as File | null;
+    const format   = formData.get('format') as string | null;
+
+    if (!file) {
+      return NextResponse.json({ error: 'No file uploaded.' }, { status: 400 });
+    }
+    if (!format || !['rvlife', 'template'].includes(format)) {
+      return NextResponse.json({ error: 'Invalid format.' }, { status: 400 });
+    }
+    if (file.size > MAX_BYTES) {
+      return NextResponse.json({ error: 'File too large (max 5 MB).' }, { status: 400 });
+    }
+    if (!file.name.toLowerCase().endsWith('.xlsx')) {
+      return NextResponse.json({ error: 'Only .xlsx files are supported.' }, { status: 400 });
+    }
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const parsed = await parseImport(buffer, format as 'rvlife' | 'template');
+
+    // Load existing stays for duplicate detection
+    const pool = getPool();
+    const [existingRows] = await pool.query<RowDataPacket[]>(
+      'SELECT id, name, arrival FROM stays',
+    );
+    const existing = existingRows as { id: number; name: string; arrival: string }[];
+
+    // Dedup: same name (case-insensitive) + arrival within 3 days
+    const stays: ParsedStay[] = parsed.map(stay => {
+      const lowerName = stay.name.toLowerCase().trim();
+      const arrMs     = new Date(stay.arrival).getTime();
+
+      for (const ex of existing) {
+        if (ex.name.toLowerCase().trim() !== lowerName) continue;
+        const diffDays = Math.abs(arrMs - new Date(ex.arrival).getTime()) / 86_400_000;
+        if (diffDays <= 3) {
+          return {
+            ...stay,
+            is_duplicate:         true,
+            duplicate_of_id:      ex.id,
+            duplicate_of_arrival: ex.arrival,
+          };
+        }
+      }
+      return stay;
+    });
+
+    const summary = {
+      total:            stays.length,
+      duplicatesFound:  stays.filter(s => s.is_duplicate).length,
+      addressLikeNames: stays.filter(s => s.name_is_address_like).length,
+    };
+
+    const response: ParseResponse = { stays, summary };
+    return NextResponse.json(response);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Parse failed.';
+    return NextResponse.json({ error: message }, { status: 422 });
+  }
+}

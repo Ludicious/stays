@@ -210,8 +210,6 @@ export async function parseRVLife(buffer: Buffer): Promise<ParsedStay[]> {
 
 // ── Stays template parser ────────────────────────────────────────────
 
-const EXAMPLE_NAMES = new Set(['Wytheville KOA', 'Shadow Mountain Dispersed', 'Echo Ridge Cellars']);
-
 export async function parseStaysTemplate(buffer: Buffer): Promise<ParsedStay[]> {
   const wb = new ExcelJS.Workbook();
   // ExcelJS types predate @types/node Buffer<T> generic — cast is safe
@@ -242,15 +240,6 @@ export async function parseStaysTemplate(buffer: Buffer): Promise<ParsedStay[]> 
 
   if (headerRowNum === -1) throw new Error('"Campground Name" column header not found — is this a Stays template?');
 
-  // Check whether the warning row is still present (row 1)
-  let hasWarningRow = false;
-  const row1 = sheet.getRow(1);
-  row1.eachCell(cell => {
-    if (String(cell.value ?? '').includes('DELETE EXAMPLE ROWS BELOW BEFORE IMPORTING')) {
-      hasWarningRow = true;
-    }
-  });
-
   const makeGetter = (row: ExcelJS.Row) => (colName: string) =>
     colIndex[colName] ? row.getCell(colIndex[colName])?.value : undefined;
 
@@ -263,9 +252,6 @@ export async function parseStaysTemplate(buffer: Buffer): Promise<ParsedStay[]> 
     const get = makeGetter(row);
     const name = str(get('campground name'));
     if (!name) return; // blank row
-
-    // Skip example rows only if the warning row is still intact
-    if (hasWarningRow && EXAMPLE_NAMES.has(name)) return;
 
     const arrival   = parseFlexDate(get('arrival date'));
     const departure = parseFlexDate(get('departure date'));

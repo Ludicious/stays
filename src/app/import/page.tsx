@@ -192,7 +192,7 @@ export default function ImportPage() {
   // ── Render ───────────────────────────────────────────────────────
 
   return (
-    <div className="page-wrap">
+    <div className="page-wide">
       <h1 className="page-title" style={{ marginBottom: 8 }}>Import Stays</h1>
 
       {/* ── Step 0: Format selector ─────────────────────────────── */}

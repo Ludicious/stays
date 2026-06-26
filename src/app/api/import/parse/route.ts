@@ -26,6 +26,13 @@ export async function POST(request: NextRequest) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
+
+    // xlsx files are ZIP archives — magic bytes PK\x03\x04 (0x50 0x4B 0x03 0x04).
+    // Reject anything that doesn't match before ExcelJS can throw an unhandled stream error.
+    if (buffer.length < 4 || buffer[0] !== 0x50 || buffer[1] !== 0x4B) {
+      return NextResponse.json({ error: 'File does not appear to be a valid .xlsx file.' }, { status: 400 });
+    }
+
     const parsed = await parseImport(buffer, format as 'rvlife' | 'template');
 
     // Load existing stays for duplicate detection

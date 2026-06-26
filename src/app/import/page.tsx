@@ -417,14 +417,14 @@ export default function ImportPage() {
 
           <div className="import-actions">
             <button
-              className="btn-primary"
+              className="btn btn-primary"
               onClick={handleCommit}
               disabled={loading || importCount === 0}
             >
               {loading ? 'Importing…' : `Import ${importCount} stay${importCount !== 1 ? 's' : ''}`}
             </button>
             <button
-              className="btn-secondary"
+              className="btn btn-ghost"
               onClick={() => { setRows([]); setSummary(null); setParseError(null); setStep(1); }}
               disabled={loading}
             >
@@ -444,14 +444,14 @@ export default function ImportPage() {
 
           <div className="import-confirm-links">
             {commitResult.hasUpcoming && (
-              <Link href="/upcoming" className="btn-primary">
+              <Link href="/upcoming" className="btn btn-primary">
                 View upcoming stays
               </Link>
             )}
-            <Link href="/stays" className="btn-secondary">
+            <Link href="/stays" className="btn btn-ghost">
               View all stays
             </Link>
-            <button className="btn-secondary" onClick={reset}>
+            <button className="btn btn-ghost" onClick={reset}>
               Import another file
             </button>
           </div>

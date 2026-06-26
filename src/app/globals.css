@@ -1080,19 +1080,3 @@ button { font-family: var(--font-body); cursor: pointer; }
   margin-top: 24px;
 }
 
-/* Shared secondary button style (used on import page) */
-.btn-secondary {
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  padding: 8px 18px;
-  font-size: 14px;
-  font-family: var(--font-body);
-  color: var(--text-2);
-  cursor: pointer;
-  transition: background 0.15s;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-}
-.btn-secondary:hover { background: var(--surface-2); }

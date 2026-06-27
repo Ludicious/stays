@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Playfair_Display, DM_Sans, DM_Mono } from 'next/font/google';
 import Script from 'next/script';
 import Nav from '@/components/Nav';
+import { getInstanceName, isNonDefault } from '@/lib/instance';
 import './globals.css';
 
 const playfair = Playfair_Display({
@@ -26,8 +27,14 @@ const dmMono = DM_Mono({
   display: 'swap',
 });
 
+const instanceName = getInstanceName();
+const nonDefault   = isNonDefault();
+
 export const metadata: Metadata = {
-  title: { default: 'Stays', template: '%s · Stays' },
+  title: {
+    default:  nonDefault ? `[${instanceName}] Stays`         : 'Stays',
+    template: nonDefault ? `[${instanceName}] %s · Stays`    : '%s · Stays',
+  },
   description: 'Noteworthy Nomads stay tracker',
 };
 
@@ -39,6 +46,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <Nav />
         {children}
+        {nonDefault && (
+          <footer className="instance-badge">{instanceName}</footer>
+        )}
         {mapsKey && (
           <Script
             src={`https://maps.googleapis.com/maps/api/js?key=${mapsKey}&libraries=places&callback=Function.prototype`}

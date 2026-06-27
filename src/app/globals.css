@@ -846,6 +846,17 @@ button { font-family: var(--font-body); cursor: pointer; }
   line-height: 1.6;
 }
 
+/* ── Instance badge (non-default deployments only) ───────────────── */
+.instance-badge {
+  text-align: center;
+  padding: 6px 16px 14px;
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 /* Nav shrink on very small screens */
 @media (max-width: 480px) {
   .nav-link { padding: 5px 7px; font-size: 13px; }

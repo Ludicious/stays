@@ -30,14 +30,15 @@ Internal web app for tracking RV campground reservations and history for the Not
 
 Set these in the Hostinger Node.js panel before deploy. They must exist at build time or the app will fail to start. Restart the app after any changes.
 
-| Variable | Description |
-|---|---|
-| `MYSQL_HOST` | Hostinger MySQL hostname |
-| `MYSQL_USER` | Database user |
-| `MYSQL_PASSWORD` | Database password |
-| `MYSQL_DATABASE` | Database name |
-| `MYSQL_PORT` | MySQL port (usually 3306) |
-| `NEXT_PUBLIC_GOOGLE_PLACES_API_KEY` | Google Places API key, restricted to `*.noteworthynomads.com` |
+| Variable | Required | Description |
+|---|---|---|
+| `MYSQL_HOST` | Yes | Hostinger MySQL hostname |
+| `MYSQL_USER` | Yes | Database user |
+| `MYSQL_PASSWORD` | Yes | Database password |
+| `MYSQL_DATABASE` | Yes | Database name |
+| `MYSQL_PORT` | Yes | MySQL port (usually 3306) |
+| `NEXT_PUBLIC_GOOGLE_PLACES_API_KEY` | Yes | Google Places API key, restricted to `*.noteworthynomads.com` |
+| `INSTANCE_NAME` | No | Short label for non-default deployments (e.g. `AR`). Shows `[AR]` prefix in page titles and a muted footer badge. Leave unset on the primary instance. |
 
 Do not rely on `.env.local` for production — Hostinger reads from its own environment panel, not from files in the repo.
 
@@ -73,6 +74,68 @@ npm run import-xlsx
 ```
 
 The script truncates `stays` before inserting, so it is safe to run more than once.
+
+---
+
+## Spinning up a second instance
+
+Both instances build from the same `main` branch. The only thing that differentiates them is environment variables. No forking, no branching.
+
+### Steps
+
+**1. Create the Hostinger website**
+
+In Hostinger's panel, create a new Node.js website. Point it at the same GitHub repo (`Ludicious/stays`) and the same branch (`main`). Hostinger will auto-deploy on every push to `main` exactly like the primary instance.
+
+**2. Create a new MySQL database and user**
+
+In Hostinger's Databases section, create a new database and a dedicated user with full privileges on that database. Note the hostname, username, password, and database name — you'll need them in step 3.
+
+**3. Set environment variables before first deploy**
+
+In the Hostinger Node.js panel for the new website, set all of the following before triggering any deploy. Missing vars at build time will cause the app to fail to start.
+
+| Variable | Value |
+|---|---|
+| `MYSQL_HOST` | New database hostname |
+| `MYSQL_USER` | New database user |
+| `MYSQL_PASSWORD` | New database password |
+| `MYSQL_DATABASE` | New database name |
+| `MYSQL_PORT` | `3306` |
+| `NEXT_PUBLIC_GOOGLE_PLACES_API_KEY` | Same key as primary (already restricted to `*.noteworthynomads.com`) |
+| `INSTANCE_NAME` | Short label, e.g. `AR` |
+
+Restart the app after setting vars. Deploy only after vars are confirmed.
+
+**4. Run migrations against the new database**
+
+The new database needs the same schema and seed data as the primary. Run the SQL files in order via phpMyAdmin or a MySQL client pointed at the new database:
+
+```
+TODO: exact migration command TBD — mechanism (phpMyAdmin / mysql CLI / Hostinger terminal) not yet decided
+```
+
+Files to run, in order:
+
+| File | Purpose |
+|---|---|
+| `sql/01_schema.sql` | Tables: `stays`, `states`, `memberships` |
+| `sql/02_seed.sql` | Seed data for `states` and `memberships` |
+| `sql/03_migration_places.sql` | Adds `lat`, `lng`, `place_id` to `stays` |
+
+**Verify after seeding:** `states` should have 63 rows (50 US states + DC + 12 Canadian provinces/territories), `memberships` should have 3 rows.
+
+**5. Connect the subdomain**
+
+In Hostinger DNS, add a CNAME record pointing the new subdomain (e.g. `stays-ar.noteworthynomads.com`) to the new website. SSL will provision automatically.
+
+**6. Verify the instance badge**
+
+Load the new subdomain. You should see:
+- `[AR]` prefix in the browser tab title
+- A small muted `AR` footer badge at the bottom of every page
+
+If the badge is missing, check that `INSTANCE_NAME` is set in the Hostinger panel and that the app has been restarted since the var was added.
 
 ---
 

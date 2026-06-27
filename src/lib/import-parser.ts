@@ -87,7 +87,7 @@ function isAddressLike(name: string): boolean {
 const TT_KW   = ['thousand trails'];
 const HH_KW   = ['winery', 'cellars', 'vineyard', 'vineyards', 'brewery', 'distilling', 'distillery', 'farm'];
 const BDK_KW  = ['blm', 'usfs', 'forest service', 'national forest', 'dispersed', 'boondock', 'boondocking'];
-const VALID_TYPES = new Set<string>(['Paid', 'Boondocking', 'Harvest Host', 'Free']);
+const VALID_TYPES = new Set<string>(['Paid', 'Boondocking', 'Harvest Host', 'Free', 'Storage']);
 
 function applySuggestions(
   name: string,

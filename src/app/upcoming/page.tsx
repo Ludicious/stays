@@ -261,6 +261,7 @@ function UpcomingCard({ stay }: { stay: Stay }) {
     Boondocking: 'Boondock',
     'Harvest Host': 'HH',
     Free: 'Free',
+    Storage: 'Storage',
   };
 
   return (

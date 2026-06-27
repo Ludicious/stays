@@ -9,7 +9,7 @@ import type { StayType } from '@/lib/types';
 // metadata must be in a separate server file when using 'use client',
 // but the title is set via the layout template — no action needed here.
 
-const STAY_TYPES: StayType[] = ['Paid', 'Boondocking', 'Harvest Host', 'Free'];
+const STAY_TYPES: StayType[] = ['Paid', 'Boondocking', 'Harvest Host', 'Free', 'Storage'];
 
 // Add N days to a YYYY-MM-DD string
 function addDays(dateStr: string, n: number): string {

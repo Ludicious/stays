@@ -5,7 +5,7 @@ export type StayStatus =
   | 'Stayed'
   | 'Cancelled';
 
-export type StayType = 'Paid' | 'Boondocking' | 'Harvest Host' | 'Free';
+export type StayType = 'Paid' | 'Boondocking' | 'Harvest Host' | 'Free' | 'Storage';
 
 export interface Stay {
   id: number;

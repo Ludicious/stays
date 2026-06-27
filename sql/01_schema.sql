@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS stays (
   arrival              DATE           NOT NULL,
   departure            DATE           NOT NULL,
   nights               INT            GENERATED ALWAYS AS (DATEDIFF(departure, arrival)) STORED,
-  stay_type            ENUM('Paid','Boondocking','Harvest Host','Free') NOT NULL,
+  stay_type            ENUM('Paid','Boondocking','Harvest Host','Free','Storage') NOT NULL,
   program              VARCHAR(50),
   status               ENUM('Booked','Deposit Paid','Paid in Full','Stayed','Cancelled') NOT NULL DEFAULT 'Booked',
   total_charged        DECIMAL(10,2)  DEFAULT 0,

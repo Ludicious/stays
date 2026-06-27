@@ -11,7 +11,7 @@ import type { Stay, StayStatus, StayType } from '@/lib/types';
 // ── Constants ────────────────────────────────────────────────────────
 
 const STATUSES: StayStatus[] = ['Booked', 'Deposit Paid', 'Paid in Full', 'Stayed', 'Cancelled'];
-const STAY_TYPES: StayType[] = ['Paid', 'Boondocking', 'Harvest Host', 'Free'];
+const STAY_TYPES: StayType[] = ['Paid', 'Boondocking', 'Harvest Host', 'Free', 'Storage'];
 const COUNTRIES              = ['USA', 'Canada'];
 
 // ── Helpers ──────────────────────────────────────────────────────────

@@ -33,6 +33,7 @@ const TYPE_LABEL: Record<string, string> = {
   Boondocking:    'Boondock',
   'Harvest Host': 'HH',
   Free:           'Free',
+  Storage:        'Storage',
 };
 
 function compare(a: Stay, b: Stay, key: SortKey): number {

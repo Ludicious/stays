@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import usePlacesAutocomplete, { getDetails } from 'use-places-autocomplete';
 
 export interface PlaceSelection {
@@ -22,7 +22,78 @@ interface Props {
   placeholder?: string;
 }
 
-export default function PlacesAutocomplete({
+/**
+ * Returns true once the Google Maps Places library is actually present on
+ * `window`. The Maps script is injected in layout.tsx with strategy
+ * "afterInteractive", so on a cold load it may not be ready when this
+ * component first mounts. usePlacesAutocomplete() throws if it runs before
+ * the library exists, and on a fresh/uncached instance that throw repeats
+ * across re-renders long enough to thrash the server. Gating the hook behind
+ * this check removes the race entirely.
+ */
+function useMapsReady(): boolean {
+  const [isReady, setIsReady] = useState(
+    () => typeof window !== 'undefined' && !!window.google?.maps?.places,
+  );
+
+  useEffect(() => {
+    if (isReady) return;
+
+    let cancelled = false;
+    const start = Date.now();
+
+    const check = () => {
+      if (cancelled) return;
+      if (window.google?.maps?.places) {
+        setIsReady(true);
+        return;
+      }
+      // Give up after 15s so a genuinely-missing key doesn't poll forever.
+      if (Date.now() - start > 15000) return;
+      window.setTimeout(check, 150);
+    };
+
+    check();
+    return () => {
+      cancelled = true;
+    };
+  }, [isReady]);
+
+  return isReady;
+}
+
+/**
+ * Outer guard. Until Maps is ready, render a plain, disabled input so the
+ * hook-bearing inner component never mounts early. Once ready, mount the
+ * real autocomplete. This is the load-order fix.
+ */
+export default function PlacesAutocomplete(props: Props) {
+  const mapsReady = useMapsReady();
+
+  if (!mapsReady) {
+    return (
+      <div className="autocomplete-wrap">
+        <input
+          type="text"
+          className="form-input"
+          value={props.value ?? ''}
+          onChange={e => props.onChange?.(e.target.value)}
+          disabled
+          placeholder="Loading map data…"
+          autoComplete="off"
+        />
+      </div>
+    );
+  }
+
+  return <PlacesAutocompleteInner {...props} />;
+}
+
+/**
+ * Inner component. Only ever mounted once Maps is confirmed loaded, so
+ * usePlacesAutocomplete() is safe to call here.
+ */
+function PlacesAutocompleteInner({
   onPlaceSelect,
   value,
   onChange,
@@ -42,7 +113,6 @@ export default function PlacesAutocomplete({
       // No 'types' restriction — allows campgrounds, addresses, and free-form names
     },
     debounce: 300,
-    // Use the externally controlled value if provided
     defaultValue: value ?? '',
   });
 

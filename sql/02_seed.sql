@@ -69,7 +69,7 @@ INSERT IGNORE INTO states (code, name, country) VALUES
   ('YT', 'Yukon',                        'Canada');
 
 -- Memberships
-INSERT IGNORE INTO memberships (name, annual_fee, discount_desc) VALUES
-  ('Thousand Trails', 1150.00, 'Unlimited free nights'),
-  ('KOA Rewards',       39.00, '10% off stays'),
-  ('Good Sam',          39.00, '10% off stays');
+INSERT IGNORE INTO memberships (name, annual_fee, savings_method, discount_percent, discount_desc) VALUES
+  ('Thousand Trails', 1150.00, 'free_vs_avg',  NULL,  'Unlimited free nights'),
+  ('KOA Rewards',       39.00, 'percent_off',  10.00, '10% off stays'),
+  ('Good Sam',          30.00, 'percent_off',  10.00, '10% off stays');

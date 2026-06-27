@@ -38,13 +38,21 @@ export interface Stay {
   updated_at: string;
 }
 
+export type SavingsMethod = 'percent_off' | 'free_vs_avg' | 'per_stay_value' | 'none';
+
 export interface Membership {
   id: number;
   name: string;
   annual_fee: number;
+  savings_method: SavingsMethod;
+  discount_percent: number | null;
+  per_stay_value: number | null;
   discount_desc: string | null;
+  affiliate_url: string | null;
   active: boolean;
   notes: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface State {

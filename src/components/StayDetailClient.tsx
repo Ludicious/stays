@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import GateCodeEditor from './GateCodeEditor';
@@ -51,9 +51,17 @@ export default function StayDetailClient({ stay: initialStay }: { stay: Stay }) 
   const [showDelete,   setShowDelete]  = useState(false);
   const [deleting,     setDeleting]    = useState(false);
   const [deleteError,  setDeleteError] = useState<string | null>(null);
-  const [showMarkPaid,  setShowMarkPaid]  = useState(false);
-  const [markingPaid,   setMarkingPaid]   = useState(false);
-  const [markPaidError, setMarkPaidError] = useState<string | null>(null);
+  const [showMarkPaid,    setShowMarkPaid]    = useState(false);
+  const [markingPaid,     setMarkingPaid]     = useState(false);
+  const [markPaidError,   setMarkPaidError]   = useState<string | null>(null);
+  const [membershipNames, setMembershipNames] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch('/api/memberships?active=true')
+      .then(r => r.json())
+      .then((data: { name: string }[]) => setMembershipNames(data.map(m => m.name)))
+      .catch(() => {/* non-critical */});
+  }, []);
 
   // ── Edit handlers ────────────────────────────────────────────────
 
@@ -291,6 +299,38 @@ export default function StayDetailClient({ stay: initialStay }: { stay: Stay }) 
               {raw}
               {' '}
               <button onClick={() => openEdit(field as string, raw)} className="edit-btn">Edit</button>
+            </>
+          )}
+        </span>
+      </div>
+    );
+  };
+
+  const programSelectRow = () => {
+    const raw     = stay.program;
+    const editing = editingField === 'program';
+    return (
+      <div className="info-row">
+        <span className="info-label">Program</span>
+        <span className="info-value">
+          {editing ? (
+            <span className="inline-edit-row">
+              <select
+                value={draft}
+                onChange={e => setDraft(e.target.value)}
+                className="inline-select"
+                autoFocus
+              >
+                <option value="">— none —</option>
+                {membershipNames.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+              {saveBtns('program')}
+            </span>
+          ) : (
+            <>
+              {raw ?? <span style={{ color: 'var(--text-muted)' }}>—</span>}
+              {' '}
+              <button onClick={() => openEdit('program', raw ?? '')} className="edit-btn">Edit</button>
             </>
           )}
         </span>
@@ -627,7 +667,7 @@ export default function StayDetailClient({ stay: initialStay }: { stay: Stay }) 
         <DetailsToggle>
           <div className="info-rows" style={{ borderTop: 'none' }}>
             {textRow('Confirmation', 'confirmation_number', { addLabel: 'confirmation #' })}
-            {textRow('Program',      'program',             { addLabel: 'program' })}
+            {programSelectRow()}
             {textRow('Website',      'website',             {
               addLabel: 'website',
               format: (v) => (

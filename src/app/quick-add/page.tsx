@@ -1,7 +1,7 @@
 'use client';
 
 import type { Metadata } from 'next';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import PlacesAutocomplete, { type PlaceSelection } from '@/components/PlacesAutocomplete';
 import type { StayType } from '@/lib/types';
@@ -31,8 +31,17 @@ export default function QuickAddPage() {
   const [nights,         setNights]         = useState(1);
   const [stayType,       setStayType]       = useState<StayType>('Paid');
   const [placeData,      setPlaceData]      = useState<PlaceSelection | null>(null);
+  const [program,        setProgram]        = useState('');
+  const [membershipNames, setMembershipNames] = useState<string[]>([]);
   const [submitting,     setSubmitting]     = useState(false);
   const [error,          setError]          = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/memberships?active=true')
+      .then(r => r.json())
+      .then((data: { name: string }[]) => setMembershipNames(data.map(m => m.name)))
+      .catch(() => {/* non-critical */});
+  }, []);
 
   const handlePlaceSelect = (place: PlaceSelection) => {
     setCampgroundName(place.name);
@@ -67,6 +76,7 @@ export default function QuickAddPage() {
       departure:    addDays(arrival, Math.max(nights, 1)),
       stay_type:    stayType,
       status:       'Booked',
+      program:      program || null,
       // From Places selection (if any)
       full_address: placeData?.address   ?? null,
       lat:          placeData?.lat       ?? null,
@@ -162,6 +172,22 @@ export default function QuickAddPage() {
             ))}
           </div>
         </div>
+
+        {/* Membership program */}
+        {membershipNames.length > 0 && (
+          <div className="form-group">
+            <label className="form-label" htmlFor="program">Membership program</label>
+            <select
+              id="program"
+              className="form-input"
+              value={program}
+              onChange={e => setProgram(e.target.value)}
+            >
+              <option value="">— none —</option>
+              {membershipNames.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
+        )}
 
         {error && <p className="form-error">{error}</p>}
 

@@ -6,12 +6,18 @@ CREATE TABLE IF NOT EXISTS states (
 );
 
 CREATE TABLE IF NOT EXISTS memberships (
-  id            INT            AUTO_INCREMENT PRIMARY KEY,
-  name          VARCHAR(50)    NOT NULL,
-  annual_fee    DECIMAL(10,2)  NOT NULL,
-  discount_desc VARCHAR(255),
-  active        BOOLEAN        DEFAULT TRUE,
-  notes         TEXT
+  id               INT            AUTO_INCREMENT PRIMARY KEY,
+  name             VARCHAR(50)    NOT NULL,
+  annual_fee       DECIMAL(10,2)  NOT NULL,
+  savings_method   ENUM('percent_off','free_vs_avg','per_stay_value','none') NOT NULL DEFAULT 'none',
+  discount_percent DECIMAL(5,2)   NULL,
+  per_stay_value   DECIMAL(10,2)  NULL,
+  discount_desc    VARCHAR(255),
+  affiliate_url    VARCHAR(500),
+  active           BOOLEAN        DEFAULT TRUE,
+  notes            TEXT,
+  created_at       TIMESTAMP      DEFAULT CURRENT_TIMESTAMP,
+  updated_at       TIMESTAMP      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS stays (

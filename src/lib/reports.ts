@@ -207,11 +207,18 @@ export async function computeReports(year: string): Promise<ReportData> {
     const mSpend             = mStays.reduce((sum, s) => sum + (s.total_charged || 0), 0);
     const effectiveAnnualFee = (m.annual_fee || 0) * yearsCount;
 
-    const isDiscount = (m.discount_desc ?? '').includes('%');
-    const estSavings = isDiscount
-      // DB stores post-discount amounts; reverse-calculate pre-discount to find true savings
-      ? (mSpend / 0.90) * 0.10 - effectiveAnnualFee
-      : nightsUsed * avgPaidPerNight - effectiveAnnualFee;
+    const stayCount = mStays.length;
+    let estSavings: number;
+    if (m.savings_method === 'percent_off' && m.discount_percent != null) {
+      const pct = m.discount_percent / 100;
+      estSavings = (mSpend / (1 - pct)) * pct - effectiveAnnualFee;
+    } else if (m.savings_method === 'free_vs_avg') {
+      estSavings = nightsUsed * avgPaidPerNight - effectiveAnnualFee;
+    } else if (m.savings_method === 'per_stay_value' && m.per_stay_value != null) {
+      estSavings = stayCount * m.per_stay_value - effectiveAnnualFee;
+    } else {
+      estSavings = -effectiveAnnualFee;
+    }
 
     const effectivePerNight = nightsUsed > 0 ? effectiveAnnualFee / nightsUsed : null;
 
@@ -222,7 +229,7 @@ export async function computeReports(year: string): Promise<ReportData> {
       nightsUsed,
       effectivePerNight,
       estSavings,
-      worthIt: estSavings > 0,
+      worthIt: m.savings_method !== 'none' && estSavings > 0,
     };
   });
 

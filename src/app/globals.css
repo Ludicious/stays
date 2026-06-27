@@ -846,6 +846,82 @@ button { font-family: var(--font-body); cursor: pointer; }
   line-height: 1.6;
 }
 
+/* ── Memberships page ───────────────────────────────────────────── */
+.membership-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+.membership-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+.membership-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+.membership-card.inactive {
+  opacity: 0.55;
+}
+.membership-card-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.membership-name {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text);
+}
+.membership-fee {
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.membership-meta {
+  font-size: 13px;
+  color: var(--text-2);
+  margin: 0 0 4px;
+}
+.membership-method {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0 0 8px;
+}
+.membership-link {
+  display: block;
+  font-size: 12px;
+  color: var(--gold-dark);
+  margin-bottom: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.membership-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.membership-form-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.membership-form-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 16px;
+}
+
 /* ── Instance badge (non-default deployments only) ───────────────── */
 .instance-badge {
   text-align: center;

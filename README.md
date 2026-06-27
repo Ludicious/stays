@@ -151,6 +151,22 @@ These bit us during Slate-web development and apply here too.
 
 ---
 
+## Architecture notes
+
+### Google Maps / Places integration
+
+The Google Maps JavaScript library is injected once in `src/app/layout.tsx` using Next.js `<Script strategy="afterInteractive">`. This means the library loads asynchronously after the page becomes interactive — it is **not** available synchronously at component mount time.
+
+**Rule:** Any component that calls a hook depending on `window.google.maps` (e.g. `usePlacesAutocomplete`) must guard against the library not yet being present. The pattern used in `quick-add/PlacesAutocomplete.tsx` is:
+
+1. A `useMapsReady()` hook polls `window.google.maps.places` on a short interval and returns a boolean.
+2. The outer component renders a disabled placeholder until `mapsReady === true`.
+3. Only then is the inner component (which calls the Places hook) mounted.
+
+Without this guard, the hook throws on every render during the library-load window, which on Hostinger can thrash server processes and cause 503s. Production can mask this bug via a warm browser cache — always test with an incognito cold load on a fresh instance. See `KNOWN_ISSUES.md` for the full post-mortem.
+
+---
+
 ## Routes
 
 | Route | Description |

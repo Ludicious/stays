@@ -14,14 +14,6 @@ export type {
 } from '@/lib/report-types';
 export { STAY_TYPE_COLORS, YEAR_COLORS } from '@/lib/report-types';
 
-/* ── Program aliases ─────────────────────────────────────────────
- * Maps membership table `name` → actual `program` value in stays table.
- * Only entries that differ need to be listed.
- * ─────────────────────────────────────────────────────────────── */
-const PROGRAM_MAP: Record<string, string> = {
-  'KOA Rewards': 'KOA',
-};
-
 /* ── Helpers ────────────────────────────────────────────────────── */
 const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -200,9 +192,7 @@ export async function computeReports(year: string): Promise<ReportData> {
     : 0;
 
   const membershipRowsComputed: MembershipRow[] = memberships.map(m => {
-    // Resolve the program alias (e.g. "KOA Rewards" → "KOA")
-    const lookupProgram = PROGRAM_MAP[m.name] ?? m.name;
-    const mStays             = filteredStays.filter(s => s.program === lookupProgram);
+    const mStays             = filteredStays.filter(s => s.membership_id === m.id);
     const nightsUsed         = mStays.reduce((sum, s) => sum + (s.nights || 0), 0);
     const mSpend             = mStays.reduce((sum, s) => sum + (s.total_charged || 0), 0);
     const effectiveAnnualFee = (m.annual_fee || 0) * yearsCount;

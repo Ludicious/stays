@@ -1,4 +1,4 @@
-import type { StayType } from './types';
+import type { StayType, SiteCategory } from './types';
 
 export type ImportFormat = 'rvlife' | 'template';
 
@@ -21,8 +21,9 @@ export interface ParsedStay {
   state:                 string | null;
   country:               string | null;
   // Suggestions — displayed as defaults in the preview
-  suggested_stay_type:   StayType;
-  suggested_program:     string | null;
+  suggested_stay_type:         StayType;
+  suggested_membership_name:   string | null;  // membership.name — resolved to FK in commit
+  suggested_site_category:     SiteCategory | null;
   // Flags
   name_is_address_like:  boolean;
   is_duplicate:          boolean;
@@ -62,7 +63,8 @@ export interface CommitStay {
   state:                string | null;
   country:              string | null;
   stay_type:            StayType;
-  program:              string | null;
+  membership_name:      string | null;  // resolved to membership_id by the commit route
+  site_category:        SiteCategory | null;
 }
 
 export interface CommitResponse {

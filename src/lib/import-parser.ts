@@ -1,5 +1,5 @@
 import * as ExcelJS from 'exceljs';
-import type { StayType } from './types';
+import type { StayType, SiteCategory } from './types';
 import type { ParsedStay } from './import-types';
 
 // ── Cell helpers ─────────────────────────────────────────────────────
@@ -84,45 +84,60 @@ function isAddressLike(name: string): boolean {
 
 // ── Stay type heuristics ─────────────────────────────────────────────
 
-const TT_KW   = ['thousand trails'];
-const HH_KW   = ['winery', 'cellars', 'vineyard', 'vineyards', 'brewery', 'distilling', 'distillery', 'farm'];
-const BDK_KW  = ['blm', 'usfs', 'forest service', 'national forest', 'dispersed', 'boondock', 'boondocking'];
-const VALID_TYPES = new Set<string>(['Paid', 'Boondocking', 'Harvest Host', 'Free', 'Storage']);
+const TT_KW  = ['thousand trails'];
+const HH_KW  = ['winery', 'cellars', 'vineyard', 'vineyards', 'brewery', 'distilling', 'distillery', 'farm'];
+const BDK_KW = ['blm', 'usfs', 'forest service', 'national forest', 'dispersed', 'boondock', 'boondocking'];
+
+const PUBLIC_LAND_KW    = ['blm', 'usfs', 'forest service', 'national forest', 'dispersed', 'state trust', 'state land', 'wma', 'corps of engineers', 'coe'];
+const PRIVATE_HOST_KW   = ['winery', 'cellars', 'vineyard', 'vineyards', 'brewery', 'distilling', 'distillery', 'farm', 'ranch', 'driveway', 'moochdock', 'moochdocking'];
+const COMMERCIAL_LOT_KW = ['walmart', 'cracker barrel', 'flying j', 'pilot', "love's", 'loves', 'truck stop', 'cabelas', "cabela's", 'bass pro', 'casino'];
+
+const VALID_TYPES = new Set<string>(['Paid', 'Boondocking', 'Harvest Host', 'Free', 'Membership', 'Storage']);
 
 function applySuggestions(
   name: string,
   total_charged: number,
-  rawStayType: string | null,
-  rawProgram:   string | null,
-): { suggested_stay_type: StayType; suggested_program: string | null } {
-  const lower   = name.toLowerCase();
-  let program   = rawProgram && rawProgram.trim() !== '' ? rawProgram : null;
+  rawStayType:    string | null,
+  rawMembershipName: string | null,
+): {
+  suggested_stay_type:       StayType;
+  suggested_membership_name: string | null;
+  suggested_site_category:   SiteCategory | null;
+} {
+  const lower          = name.toLowerCase();
+  let membershipName   = rawMembershipName && rawMembershipName.trim() !== '' ? rawMembershipName : null;
+
+  // Site category inference (priority: Public Land → Private Host → Commercial Lot)
+  let site_category: SiteCategory | null = null;
+  if      (PUBLIC_LAND_KW.some(k    => lower.includes(k))) site_category = 'Public Land';
+  else if (PRIVATE_HOST_KW.some(k   => lower.includes(k))) site_category = 'Private Host';
+  else if (COMMERCIAL_LOT_KW.some(k => lower.includes(k))) site_category = 'Commercial Lot';
 
   // If template provided a valid stay type, respect it
   if (rawStayType && VALID_TYPES.has(rawStayType)) {
     const stay_type = rawStayType as StayType;
-    // Still auto-populate program if blank and name matches
-    if (!program) {
-      if (TT_KW.some(k => lower.includes(k)))  program = 'Thousand Trails';
-      else if (HH_KW.some(k => lower.includes(k))) program = 'Harvest Host';
+    // Still auto-populate membership name if blank and name matches
+    if (!membershipName) {
+      if (TT_KW.some(k => lower.includes(k)))       membershipName = 'Thousand Trails';
+      else if (HH_KW.some(k => lower.includes(k)))  membershipName = 'Harvest Host';
     }
-    return { suggested_stay_type: stay_type, suggested_program: program };
+    return { suggested_stay_type: stay_type, suggested_membership_name: membershipName, suggested_site_category: site_category };
   }
 
-  // Run heuristics
+  // Run stay-type heuristics
   if (TT_KW.some(k => lower.includes(k))) {
-    return { suggested_stay_type: 'Free',         suggested_program: program ?? 'Thousand Trails' };
+    return { suggested_stay_type: 'Free',         suggested_membership_name: membershipName ?? 'Thousand Trails', suggested_site_category: site_category };
   }
   if (HH_KW.some(k => lower.includes(k))) {
-    return { suggested_stay_type: 'Harvest Host', suggested_program: program ?? 'Harvest Host' };
+    return { suggested_stay_type: 'Harvest Host', suggested_membership_name: membershipName ?? 'Harvest Host',    suggested_site_category: site_category };
   }
   if (BDK_KW.some(k => lower.includes(k))) {
-    return { suggested_stay_type: 'Boondocking',  suggested_program: program };
+    return { suggested_stay_type: 'Boondocking',  suggested_membership_name: membershipName,                     suggested_site_category: site_category };
   }
   if (total_charged === 0) {
-    return { suggested_stay_type: 'Free',         suggested_program: program };
+    return { suggested_stay_type: 'Free',         suggested_membership_name: membershipName,                     suggested_site_category: site_category };
   }
-  return { suggested_stay_type: 'Paid', suggested_program: program };
+  return { suggested_stay_type: 'Paid',           suggested_membership_name: membershipName,                     suggested_site_category: site_category };
 }
 
 // ── RV Life Tripwizard parser ────────────────────────────────────────
@@ -176,7 +191,8 @@ export async function parseRVLife(buffer: Buffer): Promise<ParsedStay[]> {
     if (!arrival || !departure) return;
 
     const total_charged = num(get('Camping Cost'));
-    const { suggested_stay_type, suggested_program } = applySuggestions(name, total_charged, null, null);
+    const { suggested_stay_type, suggested_membership_name, suggested_site_category } =
+      applySuggestions(name, total_charged, null, null);
 
     stays.push({
       tempId:               tempId++,
@@ -197,7 +213,8 @@ export async function parseRVLife(buffer: Buffer): Promise<ParsedStay[]> {
       state:                null,
       country:              null,
       suggested_stay_type,
-      suggested_program,
+      suggested_membership_name,
+      suggested_site_category,
       name_is_address_like: isAddressLike(name),
       is_duplicate:         false,
       duplicate_of_id:      null,
@@ -257,12 +274,11 @@ export async function parseStaysTemplate(buffer: Buffer): Promise<ParsedStay[]> 
     const departure = parseFlexDate(get('departure date'));
     if (!arrival || !departure) return;
 
-    const rawStayType = str(get('stay type'));
-    const rawProgram  = str(get('program'));
+    const rawStayType        = str(get('stay type'));
+    const rawMembershipName  = str(get('program'));  // "program" column in template maps to membership name
     const total_charged = num(get('total charged'));
-    const { suggested_stay_type, suggested_program } = applySuggestions(
-      name, total_charged, rawStayType, rawProgram,
-    );
+    const { suggested_stay_type, suggested_membership_name, suggested_site_category } =
+      applySuggestions(name, total_charged, rawStayType, rawMembershipName);
 
     stays.push({
       tempId:               tempId++,
@@ -283,7 +299,8 @@ export async function parseStaysTemplate(buffer: Buffer): Promise<ParsedStay[]> 
       state:                str(get('state')),
       country:              str(get('country')) ?? 'USA',
       suggested_stay_type,
-      suggested_program,
+      suggested_membership_name,
+      suggested_site_category,
       name_is_address_like: isAddressLike(name),
       is_duplicate:         false,
       duplicate_of_id:      null,

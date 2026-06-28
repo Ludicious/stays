@@ -1,20 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPool } from '@/lib/db';
 import type { CommitStay, CommitResponse } from '@/lib/import-types';
-import type { ResultSetHeader } from 'mysql2';
+import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 
 const INSERT_SQL = `
   INSERT INTO stays
     (name, city, state, country, full_address, lat, lng,
-     arrival, departure, stay_type, program, status,
+     arrival, departure, stay_type, site_category, membership_id, status,
      total_charged, deposit_paid, confirmation_number,
      phone, email, website, notes)
   VALUES
     (?, ?, ?, ?, ?, ?, ?,
-     ?, ?, ?, ?, ?,
+     ?, ?, ?, ?, ?, ?,
      ?, ?, ?,
      ?, ?, ?, ?)
 `;
+// hookup_type omitted: import path has no hookup inference yet (Phase 1b will add it).
+// program column omitted: new rows written with membership_id FK; program deprecated.
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,38 +29,49 @@ export async function POST(request: NextRequest) {
     const today    = new Date().toISOString().slice(0, 10);
     const pool     = getPool();
 
+    // Build name → id map for membership resolution
+    const [memRows] = await pool.query<RowDataPacket[]>(
+      'SELECT id, name FROM memberships WHERE active = 1'
+    );
+    const membershipNameToId = new Map<string, number>(
+      (memRows as Array<{ id: number; name: string }>).map(m => [m.name, m.id])
+    );
+
     let imported = 0;
     let hasUpcoming = false;
     const errors: CommitResponse['errors'] = [];
-    const importedIds: number[] = [];
 
     for (const stay of toInsert) {
       try {
         const status = stay.departure < today ? 'Stayed' : 'Booked';
         if (status === 'Booked') hasUpcoming = true;
 
-        const [result] = await pool.query<ResultSetHeader>(INSERT_SQL, [
+        const membershipId = stay.membership_name
+          ? (membershipNameToId.get(stay.membership_name) ?? null)
+          : null;
+
+        await pool.query<ResultSetHeader>(INSERT_SQL, [
           stay.name,
-          stay.city   ?? null,
-          stay.state  ?? null,
-          stay.country ?? 'USA',
-          stay.full_address ?? null,
-          stay.lat ?? null,
-          stay.lng ?? null,
+          stay.city            ?? null,
+          stay.state           ?? null,
+          stay.country         ?? 'USA',
+          stay.full_address    ?? null,
+          stay.lat             ?? null,
+          stay.lng             ?? null,
           stay.arrival,
           stay.departure,
           stay.stay_type,
-          stay.program || null,
+          stay.site_category   ?? null,
+          membershipId,
           status,
           stay.total_charged,
           stay.deposit_paid,
           stay.confirmation_number ?? null,
-          stay.phone   ?? null,
-          stay.email   ?? null,
-          stay.website ?? null,
-          stay.notes   ?? null,
+          stay.phone           ?? null,
+          stay.email           ?? null,
+          stay.website         ?? null,
+          stay.notes           ?? null,
         ]);
-        importedIds.push(result.insertId);
         imported++;
       } catch (err) {
         errors.push({

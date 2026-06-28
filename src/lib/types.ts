@@ -5,7 +5,17 @@ export type StayStatus =
   | 'Stayed'
   | 'Cancelled';
 
-export type StayType = 'Paid' | 'Boondocking' | 'Harvest Host' | 'Free' | 'Storage';
+export type StayType =
+  | 'Paid'
+  | 'Free'
+  | 'Membership'
+  | 'Storage'
+  | 'Boondocking'    // deprecated — removed after Phase 2 cleanup migration
+  | 'Harvest Host';  // deprecated — removed after Phase 2 cleanup migration
+
+export type HookupType = 'Full' | 'Water+Electric' | 'Electric' | 'Dry' | 'N/A';
+
+export type SiteCategory = 'Public Land' | 'Private Host' | 'Commercial Lot' | 'Campground' | 'N/A';
 
 export interface Stay {
   id: number;
@@ -21,7 +31,10 @@ export interface Stay {
   departure: string;   // YYYY-MM-DD
   nights: number;
   stay_type: StayType;
-  program: string | null;
+  hookup_type: HookupType | null;
+  site_category: SiteCategory | null;
+  membership_id: number | null;
+  program: string | null;  // deprecated — retiring after Phase 1b/2; col kept as rollback safety net
   status: StayStatus;
   total_charged: number;
   deposit_paid: number;

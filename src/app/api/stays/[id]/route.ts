@@ -29,7 +29,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 
     const allowed = [
       'name', 'city', 'state', 'country', 'full_address', 'lat', 'lng', 'place_id',
-      'arrival', 'departure', 'stay_type', 'program', 'status',
+      'arrival', 'departure', 'stay_type', 'hookup_type', 'site_category', 'membership_id',
+      'program', 'status',  // program kept for Phase 1a rollback safety; remove in Phase 2
       'total_charged', 'deposit_paid', 'confirmation_number',
       'gate_code', 'check_in_time', 'check_in_instructions',
       'phone', 'email', 'website', 'notes',

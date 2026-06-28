@@ -6,9 +6,11 @@
 /* ── Palette ────────────────────────────────────────────────────── */
 export const STAY_TYPE_COLORS: Record<string, string> = {
   Paid:            '#475569',
-  Boondocking:     '#4d7c0f',
-  'Harvest Host':  '#C9A84C',
   Free:            '#3b82f6',
+  Membership:      '#7c3aed',
+  Storage:         '#64748b',
+  Boondocking:     '#4d7c0f',   // deprecated — kept until Phase 2 cleanup
+  'Harvest Host':  '#C9A84C',  // deprecated — kept until Phase 2 cleanup
 };
 
 export const YEAR_COLORS = ['#0F2238', '#C9A84C', '#4d7c0f', '#7c3aed', '#dc2626'];

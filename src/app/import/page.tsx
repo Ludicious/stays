@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import type { ParseResponse, ParsedStay, CommitStay, CommitResponse } from '@/lib/import-types';
-import type { StayType } from '@/lib/types';
+import type { StayType, SiteCategory } from '@/lib/types';
 
 // ── Editable row — ParsedStay with user overrides ────────────────────
 
@@ -29,12 +29,13 @@ interface EditableRow {
   duplicate_of_id:      number | null;
   duplicate_of_arrival: string | null;
   // User-editable
-  skip:          boolean;
-  name:          string;
-  stay_type:     StayType;
-  program:       string;
-  total_charged: number;
-  notes:         string;
+  skip:             boolean;
+  name:             string;
+  stay_type:        StayType;
+  membership_name:  string;
+  site_category:    SiteCategory | null;
+  total_charged:    number;
+  notes:            string;
 }
 
 function toEditableRow(s: ParsedStay): EditableRow {
@@ -58,12 +59,13 @@ function toEditableRow(s: ParsedStay): EditableRow {
     duplicate_of_id:      s.duplicate_of_id,
     duplicate_of_arrival: s.duplicate_of_arrival,
     // Editable defaults
-    skip:          s.is_duplicate,
-    name:          s.name,
-    stay_type:     s.suggested_stay_type,
-    program:       s.suggested_program ?? '',
-    total_charged: s.total_charged,
-    notes:         s.notes ?? '',
+    skip:             s.is_duplicate,
+    name:             s.name,
+    stay_type:        s.suggested_stay_type,
+    membership_name:  s.suggested_membership_name ?? '',
+    site_category:    s.suggested_site_category,
+    total_charged:    s.total_charged,
+    notes:            s.notes ?? '',
   };
 }
 
@@ -164,7 +166,8 @@ export default function ImportPage() {
       state:                r.state,
       country:              r.country,
       stay_type:            r.stay_type,
-      program:              r.program || null,
+      membership_name:      r.membership_name || null,
+      site_category:        r.site_category,
     }));
 
     try {
@@ -365,8 +368,8 @@ export default function ImportPage() {
                       <input
                         type="text"
                         className="import-cell-input"
-                        value={row.program}
-                        onChange={e => updateRow(i, { program: e.target.value })}
+                        value={row.membership_name}
+                        onChange={e => updateRow(i, { membership_name: e.target.value })}
                         placeholder="none"
                       />
                     </td>

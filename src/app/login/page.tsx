@@ -1,10 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
-  const router    = useRouter();
   const [password, setPassword] = useState('');
   const [error,    setError]    = useState<string | null>(null);
   const [busy,     setBusy]     = useState(false);
@@ -20,7 +18,7 @@ export default function LoginPage() {
         body:    JSON.stringify({ password }),
       });
       if (res.ok) {
-        router.push('/upcoming');
+        window.location.assign('/upcoming');
       } else {
         const data = await res.json() as { error?: string };
         setError(data.error ?? 'Incorrect password.');

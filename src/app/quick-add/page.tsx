@@ -1,15 +1,11 @@
 'use client';
 
-import type { Metadata } from 'next';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import PlacesAutocomplete, { type PlaceSelection } from '@/components/PlacesAutocomplete';
-import type { StayType } from '@/lib/types';
+import type { StayType, Membership } from '@/lib/types';
 
-// metadata must be in a separate server file when using 'use client',
-// but the title is set via the layout template — no action needed here.
-
-const STAY_TYPES: StayType[] = ['Paid', 'Boondocking', 'Harvest Host', 'Free', 'Storage'];
+const NEW_STAY_TYPES: StayType[] = ['Paid', 'Free', 'Membership', 'Storage'];
 
 // Add N days to a YYYY-MM-DD string
 function addDays(dateStr: string, n: number): string {
@@ -23,6 +19,17 @@ function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Membership scoping — same rule as StayDetailClient, driven by savings_method
+function filterMemberships(memberships: Membership[], stayType: StayType): Membership[] {
+  if (stayType === 'Membership') {
+    return memberships.filter(m => m.savings_method === 'free_vs_avg' || m.savings_method === 'per_stay_value');
+  }
+  if (stayType === 'Paid') {
+    return memberships.filter(m => m.savings_method === 'percent_off');
+  }
+  return [];
+}
+
 export default function QuickAddPage() {
   const router = useRouter();
 
@@ -31,17 +38,33 @@ export default function QuickAddPage() {
   const [nights,         setNights]         = useState(1);
   const [stayType,       setStayType]       = useState<StayType>('Paid');
   const [placeData,      setPlaceData]      = useState<PlaceSelection | null>(null);
-  const [program,        setProgram]        = useState('');
-  const [membershipNames, setMembershipNames] = useState<string[]>([]);
+  const [membershipId,   setMembershipId]   = useState<number | null>(null);
+  const [memberships,    setMemberships]    = useState<Membership[]>([]);
   const [submitting,     setSubmitting]     = useState(false);
   const [error,          setError]          = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/memberships?active=true')
       .then(r => r.json())
-      .then((data: { name: string }[]) => setMembershipNames(data.map(m => m.name)))
+      .then((data: Membership[]) => setMemberships(data))
       .catch(() => {/* non-critical */});
   }, []);
+
+  // Clear membership_id when stay type changes to incompatible scope
+  const handleStayTypeChange = (t: StayType) => {
+    setStayType(t);
+    if (t === 'Free' || t === 'Storage') {
+      setMembershipId(null);
+    } else if (membershipId != null) {
+      // Clear if current selection is out of scope for the new type
+      const curMem = memberships.find(m => m.id === membershipId);
+      if (curMem) {
+        const isFreeBased = curMem.savings_method === 'free_vs_avg' || curMem.savings_method === 'per_stay_value';
+        if (t === 'Paid' && isFreeBased) setMembershipId(null);
+        if (t === 'Membership' && !isFreeBased) setMembershipId(null);
+      }
+    }
+  };
 
   const handlePlaceSelect = (place: PlaceSelection) => {
     setCampgroundName(place.name);
@@ -50,10 +73,7 @@ export default function QuickAddPage() {
 
   const handleNameChange = (val: string) => {
     setCampgroundName(val);
-    // Clear place data if user manually edits after selecting
-    if (placeData && val !== placeData.name) {
-      setPlaceData(null);
-    }
+    if (placeData && val !== placeData.name) setPlaceData(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -66,17 +86,21 @@ export default function QuickAddPage() {
       setError('Arrival date is required.');
       return;
     }
+    if (stayType === 'Membership' && !membershipId) {
+      setError('A membership program is required for Membership stays.');
+      return;
+    }
 
     setSubmitting(true);
     setError(null);
 
     const body = {
-      name:         campgroundName.trim(),
+      name:          campgroundName.trim(),
       arrival,
-      departure:    addDays(arrival, Math.max(nights, 1)),
-      stay_type:    stayType,
-      status:       'Booked',
-      program:      program || null,
+      departure:     addDays(arrival, Math.max(nights, 1)),
+      stay_type:     stayType,
+      status:        'Booked',
+      membership_id: membershipId ?? null,
       // From Places selection (if any)
       full_address: placeData?.address   ?? null,
       lat:          placeData?.lat       ?? null,
@@ -104,6 +128,9 @@ export default function QuickAddPage() {
       setSubmitting(false);
     }
   };
+
+  const scopedMemberships = filterMemberships(memberships, stayType);
+  const showMembershipField = stayType === 'Membership' || stayType === 'Paid';
 
   return (
     <main className="page">
@@ -159,32 +186,36 @@ export default function QuickAddPage() {
         <div className="form-group">
           <p className="form-label">Stay type</p>
           <div className="seg-control" role="group" aria-label="Stay type">
-            {STAY_TYPES.map(t => (
+            {NEW_STAY_TYPES.map(t => (
               <button
                 key={t}
                 type="button"
                 className={`seg-btn${stayType === t ? ' active' : ''}`}
-                onClick={() => setStayType(t)}
+                onClick={() => handleStayTypeChange(t)}
                 aria-pressed={stayType === t}
               >
-                {t === 'Harvest Host' ? 'HH' : t}
+                {t}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Membership program */}
-        {membershipNames.length > 0 && (
+        {/* Membership — scoped by stay type via savings_method */}
+        {showMembershipField && (
           <div className="form-group">
-            <label className="form-label" htmlFor="program">Membership program</label>
+            <label className="form-label" htmlFor="membership">
+              Membership program{stayType === 'Membership' ? ' *' : ''}
+            </label>
             <select
-              id="program"
+              id="membership"
               className="form-input"
-              value={program}
-              onChange={e => setProgram(e.target.value)}
+              value={membershipId ?? ''}
+              onChange={e => setMembershipId(e.target.value ? parseInt(e.target.value, 10) : null)}
             >
-              <option value="">— none —</option>
-              {membershipNames.map(n => <option key={n} value={n}>{n}</option>)}
+              <option value="">— {stayType === 'Membership' ? 'Select one' : 'None'} —</option>
+              {scopedMemberships.map(m => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
             </select>
           </div>
         )}
@@ -206,7 +237,7 @@ export default function QuickAddPage() {
           textAlign: 'center',
         }}
       >
-        Full edit (confirmation #, gate code, etc.) available from the stay detail page.
+        Full edit (confirmation #, gate code, hookup type, etc.) available from the stay detail page.
       </p>
     </main>
   );

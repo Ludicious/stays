@@ -6,13 +6,15 @@ import Link from 'next/link';
 import GateCodeEditor from './GateCodeEditor';
 import PlacesAutocomplete, { type PlaceSelection } from './PlacesAutocomplete';
 import DetailsToggle from './DetailsToggle';
-import type { Stay, StayStatus, StayType } from '@/lib/types';
+import type { Stay, StayStatus, StayType, HookupType, SiteCategory, Membership } from '@/lib/types';
 
 // ── Constants ────────────────────────────────────────────────────────
 
 const STATUSES: StayStatus[] = ['Booked', 'Deposit Paid', 'Paid in Full', 'Stayed', 'Cancelled'];
-const STAY_TYPES: StayType[] = ['Paid', 'Boondocking', 'Harvest Host', 'Free', 'Storage'];
-const COUNTRIES              = ['USA', 'Canada'];
+const NEW_STAY_TYPES: StayType[] = ['Paid', 'Free', 'Membership', 'Storage'];
+const HOOKUP_TYPES: HookupType[] = ['Full', 'Water+Electric', 'Electric', 'Dry', 'N/A'];
+const SITE_CATEGORIES: SiteCategory[] = ['Public Land', 'Private Host', 'Commercial Lot', 'Campground', 'N/A'];
+const COUNTRIES = ['USA', 'Canada'];
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -37,6 +39,17 @@ function statusClass(status: string): string {
   } as Record<string, string>)[status] ?? 'detail-status';
 }
 
+// Memberships visible for a given stay type — driven entirely by savings_method, no hardcoded names
+function scopedMemberships(memberships: Membership[], stayType: StayType): Membership[] {
+  if (stayType === 'Membership') {
+    return memberships.filter(m => m.savings_method === 'free_vs_avg' || m.savings_method === 'per_stay_value');
+  }
+  if (stayType === 'Paid') {
+    return memberships.filter(m => m.savings_method === 'percent_off');
+  }
+  return [];
+}
+
 // ── Component ────────────────────────────────────────────────────────
 
 export default function StayDetailClient({ stay: initialStay }: { stay: Stay }) {
@@ -54,12 +67,12 @@ export default function StayDetailClient({ stay: initialStay }: { stay: Stay }) 
   const [showMarkPaid,    setShowMarkPaid]    = useState(false);
   const [markingPaid,     setMarkingPaid]     = useState(false);
   const [markPaidError,   setMarkPaidError]   = useState<string | null>(null);
-  const [membershipNames, setMembershipNames] = useState<string[]>([]);
+  const [memberships,     setMemberships]     = useState<Membership[]>([]);
 
   useEffect(() => {
     fetch('/api/memberships?active=true')
       .then(r => r.json())
-      .then((data: { name: string }[]) => setMembershipNames(data.map(m => m.name)))
+      .then((data: Membership[]) => setMemberships(data))
       .catch(() => {/* non-critical */});
   }, []);
 
@@ -79,11 +92,18 @@ export default function StayDetailClient({ stay: initialStay }: { stay: Stay }) 
   };
 
   const saveField = async (field: string) => {
-    const required = ['name', 'country', 'stay_type', 'status', 'arrival', 'departure'];
-    const numeric  = ['total_charged', 'deposit_paid'];
+    const required    = ['name', 'country', 'stay_type', 'status', 'arrival', 'departure'];
+    const numeric     = ['total_charged', 'deposit_paid'];
+    const intNullable = ['membership_id'];
 
     let value: string | number | null;
-    if (numeric.includes(field)) {
+    if (intNullable.includes(field)) {
+      if (field === 'membership_id' && stay.stay_type === 'Membership' && !draft) {
+        setError('A membership program is required.');
+        return;
+      }
+      value = draft ? parseInt(draft, 10) : null;
+    } else if (numeric.includes(field)) {
       value = parseFloat(draft) || 0;
     } else if (required.includes(field)) {
       if (!draft.trim()) { setError('This field is required.'); return; }
@@ -92,13 +112,29 @@ export default function StayDetailClient({ stay: initialStay }: { stay: Stay }) 
       value = draft.trim() || null;
     }
 
+    // Build patch body — stay_type change may also clear membership_id
+    const patchBody: Record<string, unknown> = { [field]: value };
+    if (field === 'stay_type' && stay.membership_id != null) {
+      const newType = value as StayType;
+      if (newType === 'Free' || newType === 'Storage') {
+        patchBody.membership_id = null;
+      } else {
+        const curMem = memberships.find(m => m.id === stay.membership_id);
+        if (curMem) {
+          const isFreeBased = curMem.savings_method === 'free_vs_avg' || curMem.savings_method === 'per_stay_value';
+          if (newType === 'Paid'       && isFreeBased)  patchBody.membership_id = null;
+          if (newType === 'Membership' && !isFreeBased) patchBody.membership_id = null;
+        }
+      }
+    }
+
     setSaving(true);
     setError(null);
     try {
       const res = await fetch(`/api/stays/${stay.id}`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ [field]: value }),
+        body:    JSON.stringify(patchBody),
       });
       if (!res.ok) throw new Error('failed');
       setStay(await res.json());
@@ -188,7 +224,6 @@ export default function StayDetailClient({ stay: initialStay }: { stay: Stay }) 
     </>
   );
 
-  // Enter saves (single-line), Escape always cancels
   const kd = (field: string, multiline = false) =>
     (e: React.KeyboardEvent) => {
       if (!multiline && e.key === 'Enter') saveField(field);
@@ -306,9 +341,49 @@ export default function StayDetailClient({ stay: initialStay }: { stay: Stay }) 
     );
   };
 
-  const programSelectRow = () => {
-    const raw     = stay.program;
-    const editing = editingField === 'program';
+  // Nullable select — shows "—" when blank, allows clearing to null
+  const nullableSelectRow = (label: string, field: keyof Stay, options: string[]) => {
+    const raw     = stay[field] as string | null;
+    const editing = editingField === (field as string);
+    return (
+      <div className="info-row">
+        <span className="info-label">{label}</span>
+        <span className="info-value">
+          {editing ? (
+            <span className="inline-edit-row">
+              <select
+                value={draft}
+                onChange={e => setDraft(e.target.value)}
+                className="inline-select"
+                autoFocus
+              >
+                <option value="">—</option>
+                {options.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+              {saveBtns(field as string)}
+            </span>
+          ) : (
+            <>
+              {raw ?? <span style={{ color: 'var(--text-muted)' }}>—</span>}
+              {' '}
+              <button onClick={() => openEdit(field as string, raw ?? '')} className="edit-btn">Edit</button>
+            </>
+          )}
+        </span>
+      </div>
+    );
+  };
+
+  // Membership selector — scoped by savings_method to the current stay_type
+  const membershipRow = () => {
+    const { stay_type } = stay;
+    if (stay_type !== 'Membership' && stay_type !== 'Paid') return null;
+
+    const options  = scopedMemberships(memberships, stay_type);
+    const required = stay_type === 'Membership';
+    const current  = memberships.find(m => m.id === stay.membership_id);
+    const editing  = editingField === 'membership_id';
+
     return (
       <div className="info-row">
         <span className="info-label">Program</span>
@@ -321,16 +396,27 @@ export default function StayDetailClient({ stay: initialStay }: { stay: Stay }) 
                 className="inline-select"
                 autoFocus
               >
-                <option value="">— none —</option>
-                {membershipNames.map(n => <option key={n} value={n}>{n}</option>)}
+                {!required && <option value="">— None —</option>}
+                {required  && <option value="" disabled>Select one</option>}
+                {options.map(m => (
+                  <option key={m.id} value={String(m.id)}>{m.name}</option>
+                ))}
               </select>
-              {saveBtns('program')}
+              {saveBtns('membership_id')}
             </span>
           ) : (
             <>
-              {raw ?? <span style={{ color: 'var(--text-muted)' }}>—</span>}
+              {current?.name ?? <span style={{ color: 'var(--text-muted)' }}>—</span>}
+              {required && !current && (
+                <span style={{ marginLeft: 6, fontSize: 12, color: 'var(--red)' }}>required</span>
+              )}
               {' '}
-              <button onClick={() => openEdit('program', raw ?? '')} className="edit-btn">Edit</button>
+              <button
+                onClick={() => openEdit('membership_id', String(stay.membership_id ?? ''))}
+                className="edit-btn"
+              >
+                Edit
+              </button>
             </>
           )}
         </span>
@@ -412,6 +498,11 @@ export default function StayDetailClient({ stay: initialStay }: { stay: Stay }) 
   const mapsUrl = stay.full_address
     ? `https://maps.google.com/?q=${encodeURIComponent(stay.full_address)}`
     : `https://maps.google.com/?q=${encodeURIComponent(stay.name)}`;
+
+  // Show deprecated type as selectable only if current stay uses it (prevent offering it for other stays)
+  const stayTypeOptions: StayType[] = NEW_STAY_TYPES.includes(stay.stay_type)
+    ? NEW_STAY_TYPES
+    : [...NEW_STAY_TYPES, stay.stay_type];
 
   // ── Render ───────────────────────────────────────────────────────
 
@@ -503,10 +594,15 @@ export default function StayDetailClient({ stay: initialStay }: { stay: Stay }) 
 
         <div className="info-rows">
           {/* Location */}
-          {textRow('City',      'city',     { addLabel: 'city' })}
-          {textRow('State',     'state',    { addLabel: 'state' })}
-          {selectRow('Country',   'country',   COUNTRIES)}
-          {selectRow('Stay type', 'stay_type', STAY_TYPES)}
+          {textRow('City',    'city',    { addLabel: 'city' })}
+          {textRow('State',   'state',   { addLabel: 'state' })}
+          {selectRow('Country', 'country', COUNTRIES)}
+
+          {/* Categorization */}
+          {selectRow('Stay type',    'stay_type',    stayTypeOptions)}
+          {nullableSelectRow('Hookup',        'hookup_type',  HOOKUP_TYPES)}
+          {nullableSelectRow('Site category', 'site_category', SITE_CATEGORIES)}
+          {membershipRow()}
 
           {/* Dates */}
           {dateRow('Arrival',   'arrival')}
@@ -667,8 +763,7 @@ export default function StayDetailClient({ stay: initialStay }: { stay: Stay }) 
         <DetailsToggle>
           <div className="info-rows" style={{ borderTop: 'none' }}>
             {textRow('Confirmation', 'confirmation_number', { addLabel: 'confirmation #' })}
-            {programSelectRow()}
-            {textRow('Website',      'website',             {
+            {textRow('Website', 'website', {
               addLabel: 'website',
               format: (v) => (
                 <a href={v} target="_blank" rel="noopener noreferrer">

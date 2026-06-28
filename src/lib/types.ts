@@ -34,7 +34,8 @@ export interface Stay {
   hookup_type: HookupType | null;
   site_category: SiteCategory | null;
   membership_id: number | null;
-  program: string | null;  // deprecated — retiring after Phase 1b/2; col kept as rollback safety net
+  membership_name?: string | null;  // JOIN-derived — present in list/upcoming queries, absent in single-row PATCH responses
+  program: string | null;  // deprecated — retiring after Phase 2; col kept as rollback safety net
   status: StayStatus;
   total_charged: number;
   deposit_paid: number;

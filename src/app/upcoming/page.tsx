@@ -54,15 +54,17 @@ async function getData(): Promise<{ current: Stay | null; upcoming: Stay[] }> {
 
   const [[currentRows], [upcomingRows]] = await Promise.all([
     pool.query<RowDataPacket[]>(
-      `SELECT * FROM stays
-       WHERE arrival <= ? AND departure >= ?
-       ORDER BY arrival ASC LIMIT 1`,
+      `SELECT s.*, m.name AS membership_name FROM stays s
+       LEFT JOIN memberships m ON m.id = s.membership_id
+       WHERE s.arrival <= ? AND s.departure >= ?
+       ORDER BY s.arrival ASC LIMIT 1`,
       [todayStr, todayStr]
     ),
     pool.query<RowDataPacket[]>(
-      `SELECT * FROM stays
-       WHERE arrival > ?
-       ORDER BY arrival ASC LIMIT 5`,
+      `SELECT s.*, m.name AS membership_name FROM stays s
+       LEFT JOIN memberships m ON m.id = s.membership_id
+       WHERE s.arrival > ?
+       ORDER BY s.arrival ASC LIMIT 5`,
       [todayStr]
     ),
   ]);
@@ -237,10 +239,10 @@ function HeroCard({ stay, isCurrent }: { stay: Stay; isCurrent: boolean }) {
               </span>
             </div>
           )}
-          {stay.program && (
+          {stay.membership_name && (
             <div className="info-row">
               <span className="info-label">Program</span>
-              <span className="info-value">{stay.program}</span>
+              <span className="info-value">{stay.membership_name}</span>
             </div>
           )}
         </div>
@@ -257,11 +259,12 @@ function UpcomingCard({ stay }: { stay: Stay }) {
   const dateInfo = formatShort(stay.arrival);
 
   const typeLabel: Record<string, string> = {
-    Paid: 'Paid',
-    Boondocking: 'Boondock',
-    'Harvest Host': 'HH',
-    Free: 'Free',
-    Storage: 'Storage',
+    Paid:           'Paid',
+    Free:           'Free',
+    Membership:     'Mbr',
+    Storage:        'Storage',
+    Boondocking:    'Boondock',  // deprecated
+    'Harvest Host': 'HH',       // deprecated
   };
 
   return (

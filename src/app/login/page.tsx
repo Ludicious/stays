@@ -21,7 +21,6 @@ export default function LoginPage() {
       });
       if (res.ok) {
         router.push('/upcoming');
-        router.refresh();
       } else {
         const data = await res.json() as { error?: string };
         setError(data.error ?? 'Incorrect password.');

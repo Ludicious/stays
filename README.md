@@ -139,6 +139,41 @@ If the badge is missing, check that `INSTANCE_NAME` is set in the Hostinger pane
 
 ---
 
+## Authentication
+
+All pages and API routes are gated behind a single shared password per instance. There are no user accounts — this is a deliberate design choice for a private two-person tool.
+
+### How it works
+
+- `src/middleware.ts` intercepts every request. Unauthenticated visitors are redirected to `/login` (pages) or receive a `401` (API routes).
+- Submitting the correct password at `/login` calls `POST /api/auth/login`, which sets a signed, HTTP-only, 90-day session cookie.
+- The cookie is verified on every request via [jose](https://github.com/panva/jose) JWT verification.
+- `POST /api/auth/logout` clears the cookie. There is a Log out link in the nav.
+
+### Environment variables
+
+Two additional env vars are required — **set different values on each instance:**
+
+| Variable | Description |
+|---|---|
+| `APP_PASSWORD` | The shared password for this instance. Prod and AR use different passwords. |
+| `SESSION_SECRET` | A long random string (min 32 chars) used to sign session cookies. Must be stable — changing it invalidates all active sessions. |
+
+Generate a SESSION_SECRET:
+```bash
+node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+```
+
+### Deployment
+
+1. Set `APP_PASSWORD` and `SESSION_SECRET` in each instance's Hostinger Node.js environment panel.
+2. Restart the Node app after setting (Hostinger requirement — env vars are not hot-reloaded).
+3. Verify in an incognito window: visiting the site should show the login page, and the correct password should let you in.
+
+Prod and AR get **different** passwords and **different** secrets.
+
+---
+
 ## Hostinger gotchas
 
 These bit us during Slate-web development and apply here too.

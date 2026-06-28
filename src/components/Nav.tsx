@@ -1,15 +1,22 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 export default function Nav() {
   const pathname = usePathname();
+  const router   = useRouter();
 
   const active = (href: string) =>
     pathname === href || (href !== '/upcoming' && pathname.startsWith(href))
       ? 'nav-link active'
       : 'nav-link';
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    router.push('/login');
+    router.refresh();
+  };
 
   return (
     <nav className="nav">
@@ -17,12 +24,13 @@ export default function Nav() {
         Noteworthy <span>Nomads</span>
       </Link>
       <div className="nav-links">
-        <Link href="/upcoming"  className={active('/upcoming')}>Upcoming</Link>
-        <Link href="/stays"     className={active('/stays')}>Stays</Link>
-        <Link href="/reports"   className={active('/reports')}>Reports</Link>
-        <Link href="/quick-add" className={active('/quick-add')}>Quick Add</Link>
+        <Link href="/upcoming"    className={active('/upcoming')}>Upcoming</Link>
+        <Link href="/stays"       className={active('/stays')}>Stays</Link>
+        <Link href="/reports"     className={active('/reports')}>Reports</Link>
+        <Link href="/quick-add"   className={active('/quick-add')}>Quick Add</Link>
         <Link href="/memberships" className={active('/memberships')}>Memberships</Link>
-        <Link href="/import"    className={active('/import')}>Import</Link>
+        <Link href="/import"      className={active('/import')}>Import</Link>
+        <button onClick={handleLogout} className="nav-logout">Log out</button>
       </div>
     </nav>
   );

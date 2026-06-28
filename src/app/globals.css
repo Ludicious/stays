@@ -76,6 +76,51 @@ button { font-family: var(--font-body); cursor: pointer; }
 }
 .nav-link:hover { color: var(--navy-text); background: rgba(255, 255, 255, 0.08); }
 .nav-link.active { color: var(--gold); }
+.nav-logout {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(248, 245, 238, 0.45);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  transition: color 0.15s, background 0.15s;
+  cursor: pointer;
+}
+.nav-logout:hover { color: rgba(248, 245, 238, 0.8); background: rgba(255, 255, 255, 0.06); }
+
+/* ── Login page ─────────────────────────────────────────────────── */
+.login-page {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px var(--page-pad);
+  background: var(--bg);
+}
+.login-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 36px 28px 32px;
+  max-width: 360px;
+  width: 100%;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+}
+.login-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--gold-dark);
+  text-align: center;
+  margin: 0 0 4px;
+}
+.login-subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+  margin: 0 0 28px;
+}
 
 /* ── Page wrapper ───────────────────────────────────────────────── */
 .page {

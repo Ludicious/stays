@@ -36,6 +36,7 @@ export default function QuickAddPage() {
   const [campgroundName, setCampgroundName] = useState('');
   const [arrival,        setArrival]        = useState(todayStr());
   const [nights,         setNights]         = useState(1);
+  const [nightsInput,    setNightsInput]    = useState('1');
   const [stayType,       setStayType]       = useState<StayType>('Paid');
   const [placeData,      setPlaceData]      = useState<PlaceSelection | null>(null);
   const [membershipId,   setMembershipId]   = useState<number | null>(null);
@@ -173,10 +174,20 @@ export default function QuickAddPage() {
               id="nights"
               type="number"
               className="form-input"
-              value={nights}
+              value={nightsInput}
               min={1}
               max={365}
-              onChange={e => setNights(Math.max(1, parseInt(e.target.value) || 1))}
+              onChange={e => {
+                const raw = e.target.value;
+                setNightsInput(raw);
+                const parsed = parseInt(raw, 10);
+                if (!isNaN(parsed)) setNights(parsed);
+              }}
+              onBlur={() => {
+                const clamped = Math.min(365, Math.max(1, parseInt(nightsInput, 10) || 1));
+                setNights(clamped);
+                setNightsInput(String(clamped));
+              }}
               required
             />
           </div>

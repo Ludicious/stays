@@ -57,7 +57,7 @@ async function getData(): Promise<{ current: Stay | null; upcoming: Stay[] }> {
       `SELECT s.*, m.name AS membership_name FROM stays s
        LEFT JOIN memberships m ON m.id = s.membership_id
        WHERE s.arrival <= ? AND s.departure >= ?
-       ORDER BY s.arrival ASC LIMIT 1`,
+       ORDER BY s.arrival DESC LIMIT 1`,
       [todayStr, todayStr]
     ),
     pool.query<RowDataPacket[]>(

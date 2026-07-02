@@ -8,21 +8,25 @@ import StaysTable from '@/components/StaysTable';
 export const metadata: Metadata = { title: 'Stays' };
 export const dynamic = 'force-dynamic';
 
-async function getAllStays(review: boolean): Promise<Stay[]> {
+type StaysMode = 'all' | 'review' | 'hookup';
+
+async function getAllStays(mode: StaysMode): Promise<Stay[]> {
   const pool = getPool();
-  // Review filter: Membership stays missing program, Free stays missing site_category, and deprecated types
-  const reviewWhere = review
-    ? `WHERE (
-        (s.stay_type = 'Membership' AND s.membership_id IS NULL)
-        OR (s.stay_type = 'Free' AND s.site_category IS NULL)
-        OR s.stay_type IN ('Boondocking', 'Harvest Host')
-      )`
-    : '';
+  const whereClause =
+    mode === 'review'
+      ? `WHERE (
+          (s.stay_type = 'Membership' AND s.membership_id IS NULL)
+          OR (s.stay_type = 'Free' AND s.site_category IS NULL)
+          OR s.stay_type IN ('Boondocking', 'Harvest Host')
+        )`
+      : mode === 'hookup'
+      ? 'WHERE s.hookup_type IS NULL'
+      : '';
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT s.*, m.name AS membership_name
      FROM stays s
      LEFT JOIN memberships m ON m.id = s.membership_id
-     ${reviewWhere}
+     ${whereClause}
      ORDER BY s.arrival DESC`
   );
   return rows as Stay[];
@@ -31,38 +35,57 @@ async function getAllStays(review: boolean): Promise<Stay[]> {
 export default async function StaysPage({
   searchParams,
 }: {
-  searchParams: Promise<{ review?: string }>;
+  searchParams: Promise<{ review?: string; hookup?: string }>;
 }) {
-  const { review } = await searchParams;
-  const isReview = review === '1';
-  const stays = await getAllStays(isReview);
+  const { review, hookup } = await searchParams;
+  const mode: StaysMode =
+    review === '1' ? 'review' : hookup === 'none' ? 'hookup' : 'all';
+  const stays = await getAllStays(mode);
+
+  const countLabel =
+    mode === 'review' ? `${stays.length} needing review`
+    : mode === 'hookup' ? `${stays.length} missing hookup`
+    : `${stays.length} total`;
 
   return (
     <main className="page page-wide">
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 20 }}>
         <h1 className="page-title" style={{ marginBottom: 0 }}>Stays</h1>
-        <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-          {isReview ? `${stays.length} needing review` : `${stays.length} total`}
-        </span>
+        <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{countLabel}</span>
         <span style={{ marginLeft: 'auto' }}>
-          {isReview ? (
+          {mode !== 'all' ? (
             <Link href="/stays" style={{ fontSize: 13, color: 'var(--text-muted)', textDecoration: 'underline' }}>
               ← All stays
             </Link>
           ) : (
-            <Link href="/stays?review=1" style={{ fontSize: 13, color: 'var(--gold-dark)', textDecoration: 'underline' }}>
-              Needs review ⚑
-            </Link>
+            <span style={{ display: 'flex', gap: 16 }}>
+              <Link href="/stays?review=1" style={{ fontSize: 13, color: 'var(--gold-dark)', textDecoration: 'underline' }}>
+                Needs review ⚑
+              </Link>
+              <Link href="/stays?hookup=none" style={{ fontSize: 13, color: 'var(--text-muted)', textDecoration: 'underline' }}>
+                No hookup ✎
+              </Link>
+            </span>
           )}
         </span>
       </div>
 
       {stays.length === 0 ? (
         <div className="empty-state">
-          {isReview ? (
+          {mode === 'review' ? (
             <>
               <p style={{ fontSize: 32 }}>✓</p>
               <p>No stays need review — all clean!</p>
+              <p>
+                <Link href="/stays" style={{ color: 'var(--gold-dark)', textDecoration: 'underline' }}>
+                  ← All stays
+                </Link>
+              </p>
+            </>
+          ) : mode === 'hookup' ? (
+            <>
+              <p style={{ fontSize: 32 }}>✓</p>
+              <p>All stays have hookup type recorded.</p>
               <p>
                 <Link href="/stays" style={{ color: 'var(--gold-dark)', textDecoration: 'underline' }}>
                   ← All stays

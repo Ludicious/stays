@@ -1,16 +1,18 @@
 import { getPool } from '@/lib/db';
 import type { Stay, Membership } from '@/lib/types';
 import type { RowDataPacket } from 'mysql2';
+import { SOLAR_SYSTEM } from '@/lib/solar';
 import type {
   BigPictureData, StayTypeData, TrendsData,
   GeographyRow, MembershipRow, MembershipData,
-  LengthBucket, ReportData,
+  LengthBucket, SolarBuckets, SolarData, ReportData,
 } from '@/lib/report-types';
 
 // Re-export everything from report-types so existing imports keep working
 export type {
   BigPictureData, StayTypeData, TrendsData, MonthlyByYearRow,
-  GeographyRow, MembershipRow, MembershipData, LengthBucket, ReportData,
+  GeographyRow, MembershipRow, MembershipData, LengthBucket,
+  SolarBuckets, SolarData, ReportData,
 } from '@/lib/report-types';
 export { STAY_TYPE_COLORS, YEAR_COLORS } from '@/lib/report-types';
 
@@ -229,6 +231,54 @@ export async function computeReports(year: string): Promise<ReportData> {
     yearsCount,
   };
 
+  /* ── Solar ROI ────────────────────────────────────────────────── */
+  let solarFullNights     = 0;
+  let solarElectricNights = 0;
+  let solarDryNights      = 0;
+  let solarNullNights     = 0;
+  let staysWithHookup     = 0;
+  let totalStaysSolar     = 0;
+
+  for (const s of filteredStays) {
+    if (s.hookup_type === 'N/A') continue;
+    totalStaysSolar++;
+    const n = s.nights || 0;
+    if (s.hookup_type === 'Full') {
+      solarFullNights += n; staysWithHookup++;
+    } else if (s.hookup_type === 'Electric' || s.hookup_type === 'Water+Electric') {
+      solarElectricNights += n; staysWithHookup++;
+    } else if (s.hookup_type === 'Dry') {
+      solarDryNights += n; staysWithHookup++;
+    } else {
+      solarNullNights += n;
+    }
+  }
+
+  const totalRecordedNights = solarFullNights + solarElectricNights + solarDryNights;
+  const pctDryRecorded = totalRecordedNights > 0
+    ? (solarDryNights / totalRecordedNights) * 100
+    : 0;
+
+  const lifetimeDryNights = allStays
+    .filter(s => s.hookup_type === 'Dry' && s.arrival >= SOLAR_SYSTEM.in_service_date)
+    .reduce((sum, s) => sum + (s.nights || 0), 0);
+
+  const solarBuckets: SolarBuckets = {
+    fullNights:     solarFullNights,
+    electricNights: solarElectricNights,
+    dryNights:      solarDryNights,
+    nullNights:     solarNullNights,
+  };
+  const solar: SolarData = {
+    buckets:             solarBuckets,
+    pctDryRecorded,
+    totalRecordedNights,
+    staysWithHookup,
+    totalStaysSolar,
+    avgPaidPerNight,
+    lifetimeDryNights,
+  };
+
   /* ── Stay Length Buckets (Paid stays only) ────────────────────── */
   const bucketTotals = new Map<string, { spend: number; nights: number; count: number }>();
   BUCKETS.forEach(b => bucketTotals.set(b, { spend: 0, nights: 0, count: 0 }));
@@ -265,5 +315,6 @@ export async function computeReports(year: string): Promise<ReportData> {
     geography,
     memberships: membershipData,
     lengthBuckets,
+    solar,
   };
 }

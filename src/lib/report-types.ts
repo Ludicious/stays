@@ -76,6 +76,23 @@ export interface LengthBucket {
   count:           number;
 }
 
+export interface SolarBuckets {
+  fullNights:     number;
+  electricNights: number;
+  dryNights:      number;
+  nullNights:     number;
+}
+
+export interface SolarData {
+  buckets:             SolarBuckets;
+  pctDryRecorded:      number;
+  totalRecordedNights: number;
+  staysWithHookup:     number;
+  totalStaysSolar:     number;
+  avgPaidPerNight:     number;
+  lifetimeDryNights:   number;
+}
+
 export interface ReportData {
   year:          string;
   bigPicture:    BigPictureData;
@@ -84,4 +101,5 @@ export interface ReportData {
   geography:     GeographyRow[];
   memberships:   MembershipData;
   lengthBuckets: LengthBucket[];
+  solar:         SolarData;
 }

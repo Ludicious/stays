@@ -6,6 +6,7 @@ import Trends        from './components/Trends';
 import Geography     from './components/Geography';
 import MembershipROI from './components/MembershipROI';
 import StayLength    from './components/StayLength';
+import SolarROI      from './components/SolarROI';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +29,7 @@ export default async function ReportsPage({ searchParams }: Props) {
       <Trends          data={data.trends}        year={year} />
       <Geography       data={data.geography} />
       <MembershipROI   data={data.memberships}   year={year} />
+      <SolarROI        data={data.solar}          year={year} />
       <StayLength      data={data.lengthBuckets} year={year} />
     </div>
   );

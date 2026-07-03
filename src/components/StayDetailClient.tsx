@@ -508,7 +508,7 @@ export default function StayDetailClient({ stay: initialStay }: { stay: Stay }) 
 
   return (
     <>
-      <Link href="/upcoming" className="detail-back">← Upcoming</Link>
+      <Link href="/stays" className="detail-back">← Stays</Link>
 
       {/* Status badge — editable */}
       {editingField === 'status' ? (

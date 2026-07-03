@@ -74,3 +74,16 @@ export interface State {
   name: string;
   country: string;
 }
+
+export type FuelType = 'Diesel' | 'Gasoline' | 'DEF' | 'Propane';
+
+export interface FuelPurchase {
+  id:            number;
+  purchase_date: string;   // YYYY-MM-DD
+  fuel_type:     FuelType;
+  total_cost:    number;
+  gallons:       number | null;
+  odometer:      number | null;
+  notes:         string | null;
+  created_at:    string;
+}

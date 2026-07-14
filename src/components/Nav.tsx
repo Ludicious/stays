@@ -25,6 +25,7 @@ export default function Nav() {
       </Link>
       <div className="nav-links">
         <Link href="/upcoming"    className={active('/upcoming')}>Upcoming</Link>
+        <Link href="/calendar"    className={active('/calendar')}>Calendar</Link>
         <Link href="/stays"       className={active('/stays')}>Stays</Link>
         <Link href="/fuel"        className={active('/fuel')}>Fuel</Link>
         <Link href="/reports"     className={active('/reports')}>Reports</Link>

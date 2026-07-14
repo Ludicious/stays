@@ -118,8 +118,8 @@ export default function SolarROI({ data, year }: Props) {
           {buckets.nullNights > 0 && (
             <>
               {' · '}
-              <a href="/stays?hookup=none" style={{ color: 'var(--gold-dark)', textDecoration: 'underline' }}>
-                View unrecorded
+              <a href="/stays" style={{ color: 'var(--gold-dark)', textDecoration: 'underline' }}>
+                Filter in Stays →
               </a>
             </>
           )}

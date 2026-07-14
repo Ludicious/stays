@@ -983,6 +983,159 @@ button { font-family: var(--font-body); cursor: pointer; }
   .nav-link { padding: 5px 7px; font-size: 13px; }
 }
 
+/* ── Filter bar (FilterBar.tsx) ─────────────────────────────────── */
+.filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.filter-group-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  min-width: 54px;
+  flex-shrink: 0;
+}
+.filter-chips {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 5px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
+}
+.filter-chip {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 20px;
+  padding: 4px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.filter-chip:hover { background: var(--surface-2); }
+.filter-chip.active {
+  background: var(--gold-dark);
+  border-color: var(--gold-dark);
+  color: #fff;
+}
+.filter-clear {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  padding: 2px 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-align: left;
+  align-self: flex-start;
+}
+.filter-clear:hover { color: var(--text-2); }
+
+/* ── Calendar (react-big-calendar) ──────────────────────────────── */
+.rbc-calendar {
+  font-family: var(--font-body);
+  color: var(--text);
+}
+.rbc-toolbar {
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.rbc-toolbar button {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-2);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.rbc-toolbar button:hover {
+  background: var(--surface-2);
+}
+.rbc-toolbar button.rbc-active,
+.rbc-toolbar button.rbc-active:hover {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #fff;
+}
+.rbc-toolbar-label {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+.rbc-header {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 8px 4px !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+.rbc-month-view {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+}
+.rbc-month-row + .rbc-month-row { border-top: 1px solid var(--border); }
+.rbc-day-bg + .rbc-day-bg       { border-left: 1px solid var(--border); }
+.rbc-off-range-bg               { background: var(--surface-2); }
+.rbc-today                      { background: rgba(201, 168, 76, 0.07); }
+.rbc-date-cell {
+  font-size: 12px;
+  color: var(--text-2);
+  padding: 4px 6px;
+  text-align: right;
+}
+.rbc-date-cell.rbc-now { font-weight: 700; color: var(--gold-dark); }
+.rbc-show-more         { font-size: 11px; color: var(--gold-dark); background: transparent; }
+.rbc-agenda-view table.rbc-agenda-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.rbc-agenda-view table.rbc-agenda-table thead > tr > th {
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.rbc-agenda-view table.rbc-agenda-table tbody > tr > td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.rbc-agenda-empty {
+  padding: 40px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
 /* ── Import wizard ───────────────────────────────────────────────── */
 
 .import-step {

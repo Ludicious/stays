@@ -2,9 +2,9 @@ import type { Metadata } from 'next';
 import type { RowDataPacket } from 'mysql2';
 import { getPool } from '@/lib/db';
 import type { Stay } from '@/lib/types';
-import StaysTable from '@/components/StaysTable';
+import CalendarClient from './CalendarClient';
 
-export const metadata: Metadata = { title: 'Stays' };
+export const metadata: Metadata = { title: 'Calendar' };
 export const dynamic = 'force-dynamic';
 
 async function getAllStays(): Promise<Stay[]> {
@@ -13,24 +13,12 @@ async function getAllStays(): Promise<Stay[]> {
     `SELECT s.*, m.name AS membership_name
      FROM stays s
      LEFT JOIN memberships m ON m.id = s.membership_id
-     ORDER BY s.arrival DESC`
+     ORDER BY s.arrival ASC`
   );
   return rows as Stay[];
 }
 
-export default async function StaysPage() {
+export default async function CalendarPage() {
   const stays = await getAllStays();
-  return (
-    <main className="page page-wide">
-      <h1 className="page-title">Stays</h1>
-      {stays.length === 0 ? (
-        <div className="empty-state">
-          <p style={{ fontSize: 32 }}>🏕</p>
-          <p>No stays yet.</p>
-        </div>
-      ) : (
-        <StaysTable stays={stays} />
-      )}
-    </main>
-  );
+  return <CalendarClient stays={stays} />;
 }

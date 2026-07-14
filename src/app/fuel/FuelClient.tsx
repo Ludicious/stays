@@ -1,7 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import type { FuelPurchase, FuelType } from '@/lib/types';
+import FilterBar from '@/components/FilterBar';
+import type { FilterDef } from '@/components/FilterBar';
 
 const FUEL_TYPES: FuelType[] = ['Diesel', 'Gasoline', 'DEF', 'Propane'];
 
@@ -61,9 +63,48 @@ export default function FuelClient({ initialPurchases, currentYear }: Props) {
   const [formError,       setFormError]       = useState<string | null>(null);
   const [edit,            setEdit]            = useState<EditState | null>(null);
   const [editSubmitting,  setEditSubmitting]  = useState(false);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [confirmDeleteId,  setConfirmDeleteId]  = useState<number | null>(null);
+  const [filterFuelType,   setFilterFuelType]   = useState('');
+  const [filterFuelYear,   setFilterFuelYear]   = useState('');
 
-  const totals = computeTotals(purchases, currentYear);
+  const fuelYears = useMemo(() => {
+    const seen = new Set<string>();
+    for (const p of purchases) seen.add(p.purchase_date.slice(0, 4));
+    return Array.from(seen).sort().reverse();
+  }, [purchases]);
+
+  const visiblePurchases = useMemo(() => {
+    let r = purchases;
+    if (filterFuelType) r = r.filter(p => p.fuel_type === filterFuelType);
+    if (filterFuelYear) r = r.filter(p => p.purchase_date.startsWith(filterFuelYear));
+    return r;
+  }, [purchases, filterFuelType, filterFuelYear]);
+
+  const hasFuelFilter = !!(filterFuelType || filterFuelYear);
+  const displayYear   = filterFuelYear ? Number(filterFuelYear) : currentYear;
+  const totals        = computeTotals(visiblePurchases, displayYear);
+
+  const fuelFilters: FilterDef[] = [
+    {
+      key:     'fuelType',
+      label:   'Type',
+      options: [
+        { value: '', label: 'All' },
+        ...FUEL_TYPES
+          .filter(t => purchases.some(p => p.fuel_type === t))
+          .map(t => ({ value: t, label: t })),
+      ],
+      value:    filterFuelType,
+      onChange: setFilterFuelType,
+    },
+    {
+      key:     'year',
+      label:   'Year',
+      options: [{ value: '', label: 'All' }, ...fuelYears.map(y => ({ value: y, label: y }))],
+      value:    filterFuelYear,
+      onChange: setFilterFuelYear,
+    },
+  ];
 
   // ── Add new purchase ───────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
@@ -271,6 +312,17 @@ export default function FuelClient({ initialPurchases, currentYear }: Props) {
         </div>
       </form>
 
+      {/* ── Filters ───────────────────────────────────────────── */}
+      {purchases.length > 0 && (
+        <div style={{ marginTop: 28 }}>
+          <FilterBar
+            filters={fuelFilters}
+            onClear={() => { setFilterFuelType(''); setFilterFuelYear(''); }}
+            hasActive={hasFuelFilter}
+          />
+        </div>
+      )}
+
       {/* ── Totals block ──────────────────────────────────────── */}
       {totals.length > 0 && (
         <section style={{ marginTop: 32, marginBottom: 8 }}>
@@ -282,7 +334,7 @@ export default function FuelClient({ initialPurchases, currentYear }: Props) {
                   Type
                 </th>
                 <th style={{ textAlign: 'right', paddingBottom: 6, color: 'var(--text-muted)', fontWeight: 500 }}>
-                  {currentYear}
+                  {displayYear}
                 </th>
                 <th style={{ textAlign: 'right', paddingBottom: 6, color: 'var(--text-muted)', fontWeight: 500 }}>
                   All-time
@@ -307,10 +359,12 @@ export default function FuelClient({ initialPurchases, currentYear }: Props) {
       )}
 
       {/* ── Entries list ──────────────────────────────────────── */}
-      {purchases.length > 0 ? (
+      {visiblePurchases.length > 0 ? (
         <section style={{ marginTop: 32 }}>
-          <p className="section-label">Entries</p>
-          {purchases.map(p => (
+          <p className="section-label">
+            Entries{hasFuelFilter ? ` (${visiblePurchases.length} of ${purchases.length})` : ''}
+          </p>
+          {visiblePurchases.map(p => (
             <div key={p.id}>
               {edit?.id === p.id ? (
                 /* EDIT ROW */
@@ -469,6 +523,19 @@ export default function FuelClient({ initialPurchases, currentYear }: Props) {
             </div>
           ))}
         </section>
+      ) : purchases.length > 0 ? (
+        <div className="empty-state" style={{ marginTop: 40 }}>
+          <p>No purchases match the active filters.</p>
+          <p style={{ marginTop: 8 }}>
+            <button
+              type="button"
+              style={{ color: 'var(--gold-dark)', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14 }}
+              onClick={() => { setFilterFuelType(''); setFilterFuelYear(''); }}
+            >
+              Clear filters
+            </button>
+          </p>
+        </div>
       ) : (
         <div className="empty-state" style={{ marginTop: 40 }}>
           <p style={{ fontSize: 32 }}>⛽</p>

@@ -34,7 +34,7 @@ function toDate(str: string): Date {
 function stayToEvent(stay: Stay): CalEvent {
   const start = toDate(stay.arrival);
   const end   = new Date(start);
-  end.setDate(end.getDate() + stay.nights);
+  end.setDate(end.getDate() + stay.nights + 1); // +1: RBC all-day end is exclusive, render through departure
   return { id: stay.id, title: stay.name, start, end, allDay: true, resource: stay };
 }
 

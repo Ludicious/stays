@@ -1,10 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Stay } from '@/lib/types';
-import FilterBar from '@/components/FilterBar';
-import type { FilterDef } from '@/components/FilterBar';
 
 type SortKey = 'arrival' | 'name' | 'city' | 'nights' | 'stay_type' | 'status' | 'total_charged' | 'balance_due';
 
@@ -72,24 +70,16 @@ function needsReview(s: Stay): boolean {
   );
 }
 
-const HOOKUP_OPTIONS: { value: string; label: string }[] = [
-  { value: '',               label: 'All'      },
-  { value: 'Full',           label: 'Full'     },
-  { value: 'Water+Electric', label: 'W+E'      },
-  { value: 'Electric',       label: 'Electric' },
-  { value: 'Dry',            label: 'Dry'      },
-  { value: 'none',           label: 'None'     },
-];
-
 export default function StaysTable({ stays }: { stays: Stay[] }) {
   const router = useRouter();
-  const [sortKey,      setSortKey]      = useState<SortKey>('arrival');
-  const [sortDir,      setSortDir]      = useState<'asc' | 'desc'>('desc');
-  const [filterYear,   setFilterYear]   = useState('');
-  const [filterType,   setFilterType]   = useState('');
-  const [filterHookup, setFilterHookup] = useState('');
-  const [filterState,  setFilterState]  = useState('');
-  const [filterReview, setFilterReview] = useState('');
+  const [sortKey,       setSortKey]       = useState<SortKey>('arrival');
+  const [sortDir,       setSortDir]       = useState<'asc' | 'desc'>('desc');
+  const [filterYear,    setFilterYear]    = useState('');
+  const [filterType,    setFilterType]    = useState('');
+  const [filterHookup,  setFilterHookup]  = useState('');
+  const [filterState,   setFilterState]   = useState('');
+  const [filterReview,  setFilterReview]  = useState('');
+  const [drawerOpen,    setDrawerOpen]    = useState(false);
 
   const years = useMemo(() => {
     const seen = new Set<string>();
@@ -126,6 +116,14 @@ export default function StaysTable({ stays }: { stays: Stay[] }) {
 
   const hasActive = !!(filterYear || filterType || filterHookup || filterState || filterReview);
 
+  const activeFilterCount = [
+    filterYear,
+    filterType,
+    filterHookup,
+    filterState,
+    filterReview === '1' ? '1' : '',
+  ].filter(Boolean).length;
+
   const clearFilters = () => {
     setFilterYear('');
     setFilterType('');
@@ -133,49 +131,6 @@ export default function StaysTable({ stays }: { stays: Stay[] }) {
     setFilterState('');
     setFilterReview('');
   };
-
-  const stateFilter: FilterDef[] = states.length > 1 ? [{
-    key: 'state',
-    label: 'State',
-    options: [{ value: '', label: 'All' }, ...states.map(st => ({ value: st, label: st }))],
-    value: filterState,
-    onChange: setFilterState,
-  }] : [];
-
-  const filters: FilterDef[] = [
-    {
-      key: 'year',
-      label: 'Year',
-      options: [{ value: '', label: 'All' }, ...years.map(y => ({ value: y, label: y }))],
-      value: filterYear,
-      onChange: setFilterYear,
-    },
-    {
-      key: 'type',
-      label: 'Type',
-      options: [{ value: '', label: 'All' }, ...types.map(t => ({ value: t, label: TYPE_LABEL[t] ?? t }))],
-      value: filterType,
-      onChange: setFilterType,
-    },
-    {
-      key: 'hookup',
-      label: 'Hookup',
-      options: HOOKUP_OPTIONS,
-      value: filterHookup,
-      onChange: setFilterHookup,
-    },
-    ...stateFilter,
-    {
-      key: 'review',
-      label: 'Review',
-      options: [
-        { value: '',  label: 'All'            },
-        { value: '1', label: 'Needs review ⚑' },
-      ],
-      value: filterReview,
-      onChange: setFilterReview,
-    },
-  ];
 
   const countLabel = hasActive
     ? `${filtered.length} of ${stays.length}`
@@ -190,6 +145,15 @@ export default function StaysTable({ stays }: { stays: Stay[] }) {
     }
   };
 
+  // Close mobile drawer on Escape
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setDrawerOpen(false); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [drawerOpen]);
+
+  // Sort-only header cell
   const Th = ({ col, label }: { col: SortKey; label: string }) => {
     const active = sortKey === col;
     return (
@@ -206,12 +170,41 @@ export default function StaysTable({ stays }: { stays: Stay[] }) {
     );
   };
 
+  // Sort indicator text for filterable headers
+  const si = (col: SortKey) =>
+    sortKey === col ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ' ↕';
+
   return (
     <div>
-      <div style={{ marginBottom: 16 }}>
-        <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{countLabel}</span>
+      {/* Above-table controls */}
+      <div className="stays-controls">
+        <span className="stays-count">{countLabel}</span>
+
+        {/* Mobile: Filters button (hidden on desktop via CSS) */}
+        <button
+          type="button"
+          className="mobile-filters-btn"
+          onClick={() => setDrawerOpen(true)}
+        >
+          Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+        </button>
+
+        {/* Review chip — always visible on all screen sizes */}
+        <button
+          type="button"
+          className={`filter-chip${filterReview === '1' ? ' active' : ''}`}
+          onClick={() => setFilterReview(r => r === '1' ? '' : '1')}
+        >
+          Needs review ⚑
+        </button>
+
+        {hasActive && (
+          <button type="button" className="filter-clear" onClick={clearFilters}>
+            Clear all
+          </button>
+        )}
       </div>
-      <FilterBar filters={filters} onClear={clearFilters} hasActive={hasActive} />
+
       {sorted.length === 0 ? (
         <div className="empty-state">
           <p style={{ fontSize: 32 }}>🔍</p>
@@ -234,14 +227,93 @@ export default function StaysTable({ stays }: { stays: Stay[] }) {
           <table className="stays-table">
             <thead>
               <tr>
-                <Th col="arrival"       label="Arrival"    />
-                <Th col="name"          label="Campground" />
-                <Th col="city"          label="Location"   />
-                <Th col="nights"        label="Nights"     />
-                <Th col="stay_type"     label="Type"       />
-                <Th col="status"        label="Status"     />
-                <Th col="total_charged" label="Total"      />
-                <Th col="balance_due"   label="Balance"    />
+                {/* ARRIVAL — sort label + year filter select */}
+                <th
+                  className={`th-filterable${sortKey === 'arrival' ? ' sorted' : ''}`}
+                  aria-sort={sortKey === 'arrival' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                >
+                  <div className="th-sort-label" onClick={() => toggleSort('arrival')}>
+                    Arrival
+                    <span className="sort-indicator" aria-hidden>{si('arrival')}</span>
+                  </div>
+                  <select
+                    className={`th-filter-select${filterYear ? ' has-value' : ''}`}
+                    value={filterYear}
+                    onChange={e => setFilterYear(e.target.value)}
+                    aria-label="Filter by year"
+                  >
+                    <option value="">All years</option>
+                    {years.map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                </th>
+
+                <Th col="name" label="Campground" />
+
+                {/* LOCATION — sort label + state filter select */}
+                <th
+                  className={`th-filterable${sortKey === 'city' ? ' sorted' : ''}`}
+                  aria-sort={sortKey === 'city' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                >
+                  <div className="th-sort-label" onClick={() => toggleSort('city')}>
+                    Location
+                    <span className="sort-indicator" aria-hidden>{si('city')}</span>
+                  </div>
+                  {states.length > 1 && (
+                    <select
+                      className={`th-filter-select${filterState ? ' has-value' : ''}`}
+                      value={filterState}
+                      onChange={e => setFilterState(e.target.value)}
+                      aria-label="Filter by state"
+                    >
+                      <option value="">All states</option>
+                      {states.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  )}
+                </th>
+
+                <Th col="nights" label="Nights" />
+
+                {/* TYPE — sort label + type & hookup filter selects */}
+                <th
+                  className={`th-filterable${sortKey === 'stay_type' ? ' sorted' : ''}`}
+                  aria-sort={sortKey === 'stay_type' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                >
+                  <div className="th-sort-label" onClick={() => toggleSort('stay_type')}>
+                    Type
+                    <span className="sort-indicator" aria-hidden>{si('stay_type')}</span>
+                  </div>
+                  <div className="th-filter-pair">
+                    <select
+                      className={`th-filter-select${filterType ? ' has-value' : ''}`}
+                      value={filterType}
+                      onChange={e => setFilterType(e.target.value)}
+                      aria-label="Filter by stay type"
+                    >
+                      <option value="">Type</option>
+                      {types.map(t => (
+                        <option key={t} value={t}>{TYPE_LABEL[t] ?? t}</option>
+                      ))}
+                    </select>
+                    <select
+                      className={`th-filter-select${filterHookup ? ' has-value' : ''}`}
+                      value={filterHookup}
+                      onChange={e => setFilterHookup(e.target.value)}
+                      aria-label="Filter by hookup type"
+                    >
+                      <option value="">Hookup</option>
+                      <option value="Full">Full</option>
+                      <option value="Water+Electric">W+E</option>
+                      <option value="Electric">Elec</option>
+                      <option value="Dry">Dry</option>
+                      <option value="N/A">N/A</option>
+                      <option value="none">None</option>
+                    </select>
+                  </div>
+                </th>
+
+                <Th col="status"        label="Status"  />
+                <Th col="total_charged" label="Total"   />
+                <Th col="balance_due"   label="Balance" />
               </tr>
             </thead>
             <tbody>
@@ -295,6 +367,111 @@ export default function StaysTable({ stays }: { stays: Stay[] }) {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Mobile filter drawer (bottom sheet) */}
+      {drawerOpen && (
+        <div className="mobile-filter-overlay" onClick={() => setDrawerOpen(false)}>
+          <div className="mobile-filter-sheet" onClick={e => e.stopPropagation()}>
+            <div className="mobile-filter-header">
+              <span className="mobile-filter-title">Filters</span>
+              <button
+                type="button"
+                className="mobile-filter-close"
+                onClick={() => setDrawerOpen(false)}
+                aria-label="Close filters"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="mobile-filter-body">
+              <div className="form-group">
+                <label className="form-label">Year</label>
+                <select
+                  className="form-input"
+                  value={filterYear}
+                  onChange={e => setFilterYear(e.target.value)}
+                >
+                  <option value="">All years</option>
+                  {years.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Stay type</label>
+                <select
+                  className="form-input"
+                  value={filterType}
+                  onChange={e => setFilterType(e.target.value)}
+                >
+                  <option value="">All types</option>
+                  {types.map(t => (
+                    <option key={t} value={t}>{TYPE_LABEL[t] ?? t}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Hookup</label>
+                <select
+                  className="form-input"
+                  value={filterHookup}
+                  onChange={e => setFilterHookup(e.target.value)}
+                >
+                  <option value="">All</option>
+                  <option value="Full">Full</option>
+                  <option value="Water+Electric">Water + Electric</option>
+                  <option value="Electric">Electric</option>
+                  <option value="Dry">Dry</option>
+                  <option value="N/A">N/A</option>
+                  <option value="none">None (unrecorded)</option>
+                </select>
+              </div>
+              {states.length > 1 && (
+                <div className="form-group">
+                  <label className="form-label">State</label>
+                  <select
+                    className="form-input"
+                    value={filterState}
+                    onChange={e => setFilterState(e.target.value)}
+                  >
+                    <option value="">All states</option>
+                    {states.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+              )}
+              <div className="form-group">
+                <label className="form-label">Review</label>
+                <select
+                  className="form-input"
+                  value={filterReview}
+                  onChange={e => setFilterReview(e.target.value)}
+                >
+                  <option value="">All</option>
+                  <option value="1">Needs review ⚑</option>
+                </select>
+              </div>
+            </div>
+            <div className="mobile-filter-footer">
+              {hasActive && (
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  style={{ flex: 1 }}
+                  onClick={clearFilters}
+                >
+                  Clear all
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ flex: 1 }}
+                onClick={() => setDrawerOpen(false)}
+              >
+                Done
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

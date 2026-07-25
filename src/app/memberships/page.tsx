@@ -13,6 +13,8 @@ const METHOD_LABELS: Record<SavingsMethod, string> = {
 type FormState = {
   name:             string;
   annual_fee:       string;
+  acquisition_cost: string;
+  acquisition_date: string;
   savings_method:   SavingsMethod;
   discount_percent: string;
   per_stay_value:   string;
@@ -25,6 +27,8 @@ type FormState = {
 const BLANK: FormState = {
   name:             '',
   annual_fee:       '',
+  acquisition_cost: '',
+  acquisition_date: '',
   savings_method:   'none',
   discount_percent: '',
   per_stay_value:   '',
@@ -38,6 +42,8 @@ function membershipToForm(m: Membership): FormState {
   return {
     name:             m.name,
     annual_fee:       String(m.annual_fee),
+    acquisition_cost: m.acquisition_cost != null ? String(m.acquisition_cost) : '',
+    acquisition_date: m.acquisition_date ?? '',
     savings_method:   m.savings_method,
     discount_percent: m.discount_percent != null ? String(m.discount_percent) : '',
     per_stay_value:   m.per_stay_value   != null ? String(m.per_stay_value)   : '',
@@ -52,6 +58,8 @@ function buildBody(form: FormState) {
   return {
     name:             form.name.trim(),
     annual_fee:       parseFloat(form.annual_fee) || 0,
+    acquisition_cost: form.acquisition_cost ? parseFloat(form.acquisition_cost) : null,
+    acquisition_date: form.acquisition_date.trim() || null,
     savings_method:   form.savings_method,
     discount_percent: form.savings_method === 'percent_off' && form.discount_percent
       ? parseFloat(form.discount_percent) : null,
@@ -151,6 +159,19 @@ export default function MembershipsPage() {
             <label className="form-label">Annual fee ($)</label>
             <input className="form-input" type="number" step="0.01" min="0"
               value={form.annual_fee} onChange={set('annual_fee')} />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Acquisition cost ($) <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>optional — capital memberships only</span></label>
+            <input className="form-input" type="number" step="0.01" min="0"
+              value={form.acquisition_cost} onChange={set('acquisition_cost')}
+              placeholder="e.g. 4250.00" />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Acquisition date <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>optional</span></label>
+            <input className="form-input" type="date"
+              value={form.acquisition_date} onChange={set('acquisition_date')} />
           </div>
 
           <div className="form-group">
@@ -256,6 +277,12 @@ function MembershipCard({
       </div>
       {m.discount_desc && (
         <p className="membership-meta">{m.discount_desc}</p>
+      )}
+      {m.acquisition_cost != null && (
+        <p className="membership-meta" style={{ fontSize: 12 }}>
+          Acquisition: ${m.acquisition_cost.toFixed(2)}
+          {m.acquisition_date ? ` · ${m.acquisition_date}` : ''}
+        </p>
       )}
       <p className="membership-method">
         {METHOD_LABELS[m.savings_method] ?? m.savings_method}

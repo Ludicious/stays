@@ -1,5 +1,5 @@
 import { getPool } from '@/lib/db';
-import type { Stay, Membership } from '@/lib/types';
+import type { Stay, Membership, MembershipPeriod } from '@/lib/types';
 import type { RowDataPacket } from 'mysql2';
 import { SOLAR_SYSTEM } from '@/lib/solar';
 import type {
@@ -29,6 +29,41 @@ function getBucket(nights: number): string {
   return '14+ nights';
 }
 
+function parseYmdDate(str: string): Date {
+  const [y, m, d] = str.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+// Count distinct calendar months touched by [start, end] inclusive.
+// Partial months at either boundary count as a full month (per spec).
+function countCalendarMonths(start: Date, end: Date): number {
+  if (end < start) return 0;
+  return (end.getFullYear() - start.getFullYear()) * 12 +
+         (end.getMonth()    - start.getMonth())    + 1;
+}
+
+// Sum period fees prorated to [windowStart, windowEnd].
+function proratedFeeForPeriods(
+  periods:     MembershipPeriod[],
+  windowStart: Date,
+  windowEnd:   Date,
+): { fee: number; months: number } {
+  const today = new Date();
+  let totalFee    = 0;
+  let totalMonths = 0;
+  for (const p of periods) {
+    const pStart = parseYmdDate(p.start_date);
+    const pEnd   = p.end_date ? parseYmdDate(p.end_date) : today;
+    const oStart = pStart > windowStart ? pStart : windowStart;
+    const oEnd   = pEnd   < windowEnd   ? pEnd   : windowEnd;
+    if (oStart > oEnd) continue;
+    const months  = countCalendarMonths(oStart, oEnd);
+    totalFee     += (months / 12) * p.annual_fee;
+    totalMonths  += months;
+  }
+  return { fee: totalFee, months: totalMonths };
+}
+
 /* ── Core computation (server-only) ─────────────────────────────── */
 export async function computeReports(year: string): Promise<ReportData> {
   const pool = getPool();
@@ -37,6 +72,17 @@ export async function computeReports(year: string): Promise<ReportData> {
     pool.query<RowDataPacket[]>('SELECT * FROM stays ORDER BY arrival ASC'),
     pool.query<RowDataPacket[]>('SELECT * FROM memberships ORDER BY name ASC'),
   ]);
+
+  // membership_periods may not exist before migration 13 is run; degrade gracefully
+  let periodRows: MembershipPeriod[] = [];
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      'SELECT * FROM membership_periods ORDER BY membership_id, start_date ASC'
+    );
+    periodRows = rows as MembershipPeriod[];
+  } catch {
+    // Table not yet created; falls back to legacy yearsCount calculation
+  }
 
   const allStays    = staysRows    as Stay[];
   const memberships = membershipRows as Membership[];
@@ -184,6 +230,7 @@ export async function computeReports(year: string): Promise<ReportData> {
     .sort((a, b) => b.totalNights - a.totalNights);
 
   /* ── Memberships ──────────────────────────────────────────────── */
+  // yearsCount kept for backward compat (deprecated — see MembershipData)
   const distinctYearsSet = new Set(filteredStays.map(s => s.arrival.slice(0, 4)));
   const yearsCount = Math.max(distinctYearsSet.size, 1);
 
@@ -193,26 +240,97 @@ export async function computeReports(year: string): Promise<ReportData> {
       paidEligible.reduce((sum, s) => sum + (s.nights || 0), 0)
     : 0;
 
-  const membershipRowsComputed: MembershipRow[] = memberships.map(m => {
-    const mStays             = filteredStays.filter(s => s.membership_id === m.id);
-    const nightsUsed         = mStays.reduce((sum, s) => sum + (s.nights || 0), 0);
-    const mSpend             = mStays.reduce((sum, s) => sum + (s.total_charged || 0), 0);
-    const effectiveAnnualFee = (m.annual_fee || 0) * yearsCount;
+  // All-time avg paid rate for lifetime capital computation (ignores year filter)
+  const allPaidEligible = allStays.filter(s => (s.total_charged || 0) > 0 && (s.nights || 0) > 0);
+  const allAvgPaidPerNight = allPaidEligible.length > 0
+    ? allPaidEligible.reduce((sum, s) => sum + (s.total_charged || 0), 0) /
+      allPaidEligible.reduce((sum, s) => sum + (s.nights || 0), 0)
+    : 0;
 
-    const stayCount = mStays.length;
+  // Group period rows by membership_id for O(1) lookup
+  const periodsByMembership = new Map<number, MembershipPeriod[]>();
+  for (const p of periodRows) {
+    const arr = periodsByMembership.get(p.membership_id) ?? [];
+    arr.push(p);
+    periodsByMembership.set(p.membership_id, arr);
+  }
+
+  // Filter window for prorated fee computation
+  const todayDate   = new Date();
+  const filterStart = year === 'all' ? new Date(0)                     : new Date(parseInt(year), 0,  1);
+  const filterEnd   = year === 'all' ? todayDate                       : new Date(parseInt(year), 11, 31);
+
+  const membershipRowsComputed: MembershipRow[] = memberships.map(m => {
+    const mStays   = filteredStays.filter(s => s.membership_id === m.id);
+    const nightsUsed = mStays.reduce((sum, s) => sum + (s.nights || 0), 0);
+    const mSpend     = mStays.reduce((sum, s) => sum + (s.total_charged || 0), 0);
+    const stayCount  = mStays.length;
+
+    // effectiveAnnualFee kept for backward compat; proratedFee is the new cost basis
+    const effectiveAnnualFee   = (m.annual_fee || 0) * yearsCount;
+    const periodsForMembership = periodsByMembership.get(m.id) ?? [];
+    const { fee: proratedFee, months: monthsCovered } = periodsForMembership.length > 0
+      ? proratedFeeForPeriods(periodsForMembership, filterStart, filterEnd)
+      : { fee: effectiveAnnualFee, months: 0 }; // fallback: no periods seeded yet
+
     let estSavings: number;
     if (m.savings_method === 'percent_off' && m.discount_percent != null) {
       const pct = m.discount_percent / 100;
-      estSavings = (mSpend / (1 - pct)) * pct - effectiveAnnualFee;
+      estSavings = (mSpend / (1 - pct)) * pct - proratedFee;
     } else if (m.savings_method === 'free_vs_avg') {
-      estSavings = nightsUsed * avgPaidPerNight - effectiveAnnualFee;
+      estSavings = nightsUsed * avgPaidPerNight - proratedFee;
     } else if (m.savings_method === 'per_stay_value' && m.per_stay_value != null) {
-      estSavings = stayCount * m.per_stay_value - effectiveAnnualFee;
+      estSavings = stayCount * m.per_stay_value - proratedFee;
     } else {
-      estSavings = -effectiveAnnualFee;
+      estSavings = -proratedFee;
     }
 
-    const effectivePerNight = nightsUsed > 0 ? effectiveAnnualFee / nightsUsed : null;
+    const effectivePerNight = nightsUsed > 0 ? proratedFee / nightsUsed : null;
+
+    // ── Capital computation (lifetime, allStays, ignores year filter) ──
+    // Only computed when acquisition_cost is set AND periods exist (both require migration 13)
+    const acquisitionCost = m.acquisition_cost ?? null;
+    let cumulativeNetSavings:  number | null = null;
+    let acquisitionRemaining:  number | null = null;
+    let projectedPaybackDate:  string | null = null;
+
+    if (acquisitionCost != null && m.acquisition_date && periodsForMembership.length > 0) {
+      const allMStays     = allStays.filter(s => s.membership_id === m.id);
+      const allNightsUsed = allMStays.reduce((sum, s) => sum + (s.nights || 0), 0);
+      const allMSpend     = allMStays.reduce((sum, s) => sum + (s.total_charged || 0), 0);
+      const allStayCount  = allMStays.length;
+
+      let lifetimeGross: number;
+      if (m.savings_method === 'percent_off' && m.discount_percent != null) {
+        const pct = m.discount_percent / 100;
+        lifetimeGross = (allMSpend / (1 - pct)) * pct;
+      } else if (m.savings_method === 'free_vs_avg') {
+        lifetimeGross = allNightsUsed * allAvgPaidPerNight;
+      } else if (m.savings_method === 'per_stay_value' && m.per_stay_value != null) {
+        lifetimeGross = allStayCount * m.per_stay_value;
+      } else {
+        lifetimeGross = 0;
+      }
+
+      const acqDate = parseYmdDate(m.acquisition_date);
+      const { fee: lifetimeDues } = proratedFeeForPeriods(periodsForMembership, acqDate, todayDate);
+
+      cumulativeNetSavings = lifetimeGross - lifetimeDues;
+      acquisitionRemaining = Math.max(0, acquisitionCost - cumulativeNetSavings);
+
+      if (acquisitionRemaining > 0 && cumulativeNetSavings > 0) {
+        const monthsSinceAcq = countCalendarMonths(acqDate, todayDate);
+        if (monthsSinceAcq > 0) {
+          const netMonthlyRate = cumulativeNetSavings / monthsSinceAcq;
+          if (netMonthlyRate > 0) {
+            const monthsToGo  = Math.ceil(acquisitionRemaining / netMonthlyRate);
+            const paybackDate  = new Date(todayDate);
+            paybackDate.setMonth(paybackDate.getMonth() + monthsToGo);
+            projectedPaybackDate = paybackDate.toISOString().slice(0, 7); // YYYY-MM
+          }
+        }
+      }
+    }
 
     return {
       name: m.name,
@@ -222,6 +340,12 @@ export async function computeReports(year: string): Promise<ReportData> {
       effectivePerNight,
       estSavings,
       worthIt: m.savings_method !== 'none' && estSavings > 0,
+      proratedFee,
+      monthsCovered,
+      acquisitionCost,
+      cumulativeNetSavings,
+      acquisitionRemaining,
+      projectedPaybackDate,
     };
   });
 

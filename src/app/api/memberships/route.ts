@@ -23,7 +23,8 @@ export async function POST(request: NextRequest) {
   const pool = getPool();
   try {
     const body = await request.json() as Record<string, unknown>;
-    const { name, annual_fee, savings_method, discount_percent, per_stay_value,
+    const { name, annual_fee, acquisition_cost, acquisition_date,
+            savings_method, discount_percent, per_stay_value,
             discount_desc, affiliate_url, active, notes } = body;
 
     if (!name || !(name as string).trim()) {
@@ -32,12 +33,15 @@ export async function POST(request: NextRequest) {
 
     const [result] = await pool.query<ResultSetHeader>(
       `INSERT INTO memberships
-         (name, annual_fee, savings_method, discount_percent, per_stay_value,
+         (name, annual_fee, acquisition_cost, acquisition_date,
+          savings_method, discount_percent, per_stay_value,
           discount_desc, affiliate_url, active, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         (name as string).trim(),
         annual_fee ?? 0,
+        acquisition_cost ?? null,
+        acquisition_date ? (acquisition_date as string).trim() || null : null,
         savings_method ?? 'none',
         discount_percent ?? null,
         per_stay_value ?? null,

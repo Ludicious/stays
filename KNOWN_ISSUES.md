@@ -148,3 +148,31 @@ Migrations run manually on BOTH databases (`u946445810_stays`, `u946445810_stays
 ## [OPERATIONS] Friend-test signal hygiene (AR instance)
 
 The AR instance exists to measure unprompted behavior against pre-committed gates (e.g. A1: will spreadsheet users sustain fuel logging over 30 days). A single push to main deploys both instances, so shipping a feature starts its measurement clock. Announce that a feature exists once; never nudge usage — prompted engagement contaminates the exact signal the gate measures. Simulated-panel outputs (personas, WTP figures) are hypotheses only; real AR signal outranks them.
+
+---
+
+## [RESOLVED] Membership fee basis derived from stay-years instead of tenure
+
+**Status:** Fixed in Migration 13 (`sql/13_membership_tenure.sql`, shipped in `feat: migration 13 — membership tenure + acquisition cost`)
+
+**Symptom:** The Membership ROI table showed wildly wrong "effective annual fee" when filtering by a single year. For Thousand Trails, a year with 12 nights showed an inflated fee basis because the report treated the membership as only covering that year, not its full tenure.
+
+**Root cause:** `yearsCount` in `computeReports()` was computed as `new Set(filteredStays.map(s => new Date(s.check_in).getFullYear())).size` — the count of distinct calendar years in the *current filter window*. This was then multiplied by `annual_fee` to get the effective fee basis. Filtering to a single year → `yearsCount = 1` → fee = 1× annual_fee regardless of how many years the membership had been held.
+
+**Fix:** New `membership_periods` child table stores one row per fee-rate period per membership, with `start_date` / `end_date` (NULL = still active). `proratedFeeForPeriods()` in `reports.ts` computes the overlap between each period's date range and the active filter window, counting calendar months (partial months count as whole). This gives a fee basis that correctly scales with the filter window relative to actual membership tenure.
+
+**`yearsCount` and `effectiveAnnualFee`** kept with `@deprecated` comments for backward compat; no code multiplies by `yearsCount` in the ROI path as of this migration.
+
+**Key lesson:** Fee basis must be anchored to real membership dates, not inferred from stay data in the filter window. Stay data is sparse and filter-dependent; period dates are authoritative.
+
+---
+
+## [PLANNED] membership_periods CRUD UI
+
+**Status:** Backlogged — follow-up to Migration 13
+
+**Background:** `membership_periods` rows must currently be managed via direct SQL (phpMyAdmin). The backfill in `sql/13_membership_tenure.sql` seeds one period per membership with a placeholder `start_date = '2000-01-01'` that the owner must correct. If annual fees change in the future, a new period row must be inserted manually.
+
+**Scope:** Add a collapsible "Fee history" section inside the Memberships page (`src/app/memberships/page.tsx`) that lists `membership_periods` rows for each membership and allows add/edit/delete. Requires a new `/api/memberships/[id]/periods` route (GET, POST) and `/api/memberships/[id]/periods/[pid]` (PATCH, DELETE).
+
+**Urgency:** Low — current fee rates are stable. Build before the next annual fee change or before any new capital membership is added.

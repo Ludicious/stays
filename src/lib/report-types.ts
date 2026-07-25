@@ -57,16 +57,25 @@ export interface GeographyRow {
 export interface MembershipRow {
   name:               string;
   annualFee:          number;
+  /** @deprecated use proratedFee — retained for backward compat while migration is in progress */
   effectiveAnnualFee: number;
   nightsUsed:         number;
   effectivePerNight:  number | null;
   estSavings:         number;
   worthIt:            boolean;
+  // Tenure-based fields (populated once membership_periods rows are seeded)
+  proratedFee:          number;       // sum of period fees prorated to the active filter window
+  monthsCovered:        number;       // calendar months covered (0 = no periods seeded yet)
+  acquisitionCost:      number | null;
+  cumulativeNetSavings: number | null; // lifetime: gross savings − total dues since acquisition
+  acquisitionRemaining: number | null; // max(0, acquisitionCost − cumulativeNetSavings)
+  projectedPaybackDate: string | null; // YYYY-MM extrapolated from realized monthly savings rate
 }
 
 export interface MembershipData {
   rows:            MembershipRow[];
   avgPaidPerNight: number;
+  /** @deprecated use per-row monthsCovered — retained for backward compat */
   yearsCount:      number;
 }
 

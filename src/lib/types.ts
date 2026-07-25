@@ -58,6 +58,8 @@ export interface Membership {
   id: number;
   name: string;
   annual_fee: number;
+  acquisition_cost: number | null;   // NULL for non-capital memberships
+  acquisition_date: string | null;   // YYYY-MM-DD; NULL until migration + owner fill-in
   savings_method: SavingsMethod;
   discount_percent: number | null;
   per_stay_value: number | null;
@@ -67,6 +69,14 @@ export interface Membership {
   notes: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface MembershipPeriod {
+  id:            number;
+  membership_id: number;
+  start_date:    string;        // YYYY-MM-DD
+  end_date:      string | null; // YYYY-MM-DD; NULL = still active
+  annual_fee:    number;
 }
 
 export interface State {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { getPool } from '@/lib/db';
+import { sweepStaleStatuses } from '@/lib/stayStatus';
 import type { Stay } from '@/lib/types';
 
 type Params = { params: Promise<{ id: string }> };
@@ -9,6 +10,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
     const pool = getPool();
+    await sweepStaleStatuses(pool);
     const [rows] = await pool.query<RowDataPacket[]>(
       'SELECT * FROM stays WHERE id = ?', [id]
     );

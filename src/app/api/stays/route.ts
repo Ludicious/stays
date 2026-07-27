@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { getPool } from '@/lib/db';
+import { sweepStaleStatuses } from '@/lib/stayStatus';
 import type { Stay } from '@/lib/types';
 
 export async function GET(request: NextRequest) {
@@ -11,6 +12,7 @@ export async function GET(request: NextRequest) {
     const limit    = searchParams.get('limit');
 
     const pool = getPool();
+    await sweepStaleStatuses(pool);
     const clauses: string[] = [];
     const params: unknown[] = [];
 

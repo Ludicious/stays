@@ -167,6 +167,26 @@ The AR instance exists to measure unprompted behavior against pre-committed gate
 
 ---
 
+## [CONVENTIONS] Fuel total_cost is settled net; discount_amount is display-only
+
+`total_cost` on `fuel_purchases` is always the **settled net amount** — what actually hit the account. Discount programs (TSD Open Roads and similar) post savings days after the pump transaction; rows entered at the pump are provisional (`settled = 0`) until the invoice lands and the discount is known. `discount_amount` is display-only and may not perfectly net out a card program's own transaction fee — do not adjust it to back out fees. **Never derive cost/mile or any spend metric from anything but `total_cost`.**
+
+Efficiency metrics (MPG, cost/mile) use bracket logic between full, odometer'd Diesel fills:
+
+* Only `fuel_type = 'Diesel'` rows count as drive fuel. DEF and Propane are excluded from efficiency calculations entirely (they still count toward spend/gallons totals).
+* A bracket segment exists between two chronologically adjacent Diesel rows that both have `odometer IS NOT NULL` and `full_fill = 1`.
+* All Diesel purchases between those two endpoints (partial fills, missing odometer) contribute their `gallons` and `total_cost` to that bracket's totals. Only the endpoints need to qualify.
+* `miles = odometer_end − odometer_start`. `MPG = miles / Σgallons in bracket`. `cost_per_mile = Σtotal_cost in bracket / miles`.
+* Fewer than two qualifying endpoints → efficiency metrics are **absent** (not zero, not estimated). Surface as "not enough data yet," not an error.
+
+---
+
+## [PLANNED] Multi-vehicle fuel tracking
+
+Current schema assumes one vehicle — validated correct for this household (single truck, always the same tank and odometer). A household running a motorhome + toad would need a `vehicles` table and a `vehicle_id` FK on `fuel_purchases`, with MPG bracketing partitioned by vehicle. Without it, fills from two different vehicles could be silently paired into a nonsense MPG segment. Not built: no real multi-vehicle household to validate the UX against.
+
+---
+
 ## [PLANNED] membership_periods CRUD UI
 
 **Status:** Backlogged — follow-up to Migration 13

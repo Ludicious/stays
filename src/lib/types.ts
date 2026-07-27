@@ -88,12 +88,16 @@ export interface State {
 export type FuelType = 'Diesel' | 'Gasoline' | 'DEF' | 'Propane';
 
 export interface FuelPurchase {
-  id:            number;
-  purchase_date: string;   // YYYY-MM-DD
-  fuel_type:     FuelType;
-  total_cost:    number;
-  gallons:       number | null;
-  odometer:      number | null;
-  notes:         string | null;
-  created_at:    string;
+  id:              number;
+  purchase_date:   string;   // YYYY-MM-DD
+  fuel_type:       FuelType;
+  total_cost:      number;   // settled net — what actually hit the account
+  discount_amount: number | null;
+  settled:         boolean;
+  gallons:         number | null;
+  odometer:        number | null;
+  full_fill:       boolean;
+  state_code:      string | null;
+  notes:           string | null;
+  created_at:      string;
 }

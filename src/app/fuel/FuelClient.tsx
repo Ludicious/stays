@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import type { FuelPurchase, FuelType } from '@/lib/types';
+import type { FuelPurchase, FuelType, State } from '@/lib/types';
 import FilterBar from '@/components/FilterBar';
 import type { FilterDef } from '@/components/FilterBar';
 
@@ -12,13 +12,17 @@ function todayStr() {
 }
 
 type EditState = {
-  id:       number;
-  fuelType: FuelType;
-  date:     string;
-  cost:     string;
-  gallons:  string;
-  odometer: string;
-  notes:    string;
+  id:             number;
+  fuelType:       FuelType;
+  date:           string;
+  cost:           string;
+  discountAmount: string;
+  settled:        boolean;
+  gallons:        string;
+  odometer:       string;
+  fullFill:       boolean;
+  stateCode:      string;
+  notes:          string;
 };
 
 interface TotalsRow {
@@ -46,26 +50,63 @@ function sortPurchases(purchases: FuelPurchase[]): FuelPurchase[] {
   });
 }
 
+// Toggle button pair — shared between add form and edit form
+function TogglePair({
+  value, onChange, trueLabel, falseLabel,
+}: {
+  value: boolean;
+  onChange: (v: boolean) => void;
+  trueLabel: string;
+  falseLabel: string;
+}) {
+  return (
+    <div className="seg-control" role="group">
+      <button
+        type="button"
+        className={`seg-btn${value ? ' active' : ''}`}
+        onClick={() => onChange(true)}
+        aria-pressed={value}
+      >
+        {trueLabel}
+      </button>
+      <button
+        type="button"
+        className={`seg-btn${!value ? ' active' : ''}`}
+        onClick={() => onChange(false)}
+        aria-pressed={!value}
+      >
+        {falseLabel}
+      </button>
+    </div>
+  );
+}
+
 interface Props {
   initialPurchases: FuelPurchase[];
+  states:           State[];
   currentYear:      number;
 }
 
-export default function FuelClient({ initialPurchases, currentYear }: Props) {
-  const [purchases,       setPurchases]       = useState<FuelPurchase[]>(initialPurchases);
-  const [fuelType,        setFuelType]        = useState<FuelType>('Diesel');
-  const [date,            setDate]            = useState(todayStr());
-  const [cost,            setCost]            = useState('');
-  const [gallons,         setGallons]         = useState('');
-  const [odometer,        setOdometer]        = useState('');
-  const [notes,           setNotes]           = useState('');
-  const [submitting,      setSubmitting]      = useState(false);
-  const [formError,       setFormError]       = useState<string | null>(null);
-  const [edit,            setEdit]            = useState<EditState | null>(null);
-  const [editSubmitting,  setEditSubmitting]  = useState(false);
+export default function FuelClient({ initialPurchases, states, currentYear }: Props) {
+  const [purchases,        setPurchases]        = useState<FuelPurchase[]>(initialPurchases);
+  const [fuelType,         setFuelType]         = useState<FuelType>('Diesel');
+  const [date,             setDate]             = useState(todayStr());
+  const [cost,             setCost]             = useState('');
+  const [discountAmount,   setDiscountAmount]   = useState('');
+  const [settled,          setSettled]          = useState(true);
+  const [gallons,          setGallons]          = useState('');
+  const [odometer,         setOdometer]         = useState('');
+  const [fullFill,         setFullFill]         = useState(true);
+  const [stateCode,        setStateCode]        = useState('');
+  const [notes,            setNotes]            = useState('');
+  const [submitting,       setSubmitting]       = useState(false);
+  const [formError,        setFormError]        = useState<string | null>(null);
+  const [edit,             setEdit]             = useState<EditState | null>(null);
+  const [editSubmitting,   setEditSubmitting]   = useState(false);
   const [confirmDeleteId,  setConfirmDeleteId]  = useState<number | null>(null);
   const [filterFuelType,   setFilterFuelType]   = useState('');
   const [filterFuelYear,   setFilterFuelYear]   = useState('');
+  const [filterSettled,    setFilterSettled]    = useState('');
 
   const fuelYears = useMemo(() => {
     const seen = new Set<string>();
@@ -77,12 +118,15 @@ export default function FuelClient({ initialPurchases, currentYear }: Props) {
     let r = purchases;
     if (filterFuelType) r = r.filter(p => p.fuel_type === filterFuelType);
     if (filterFuelYear) r = r.filter(p => p.purchase_date.startsWith(filterFuelYear));
+    if (filterSettled === 'unsettled') r = r.filter(p => !p.settled);
     return r;
-  }, [purchases, filterFuelType, filterFuelYear]);
+  }, [purchases, filterFuelType, filterFuelYear, filterSettled]);
 
-  const hasFuelFilter = !!(filterFuelType || filterFuelYear);
+  const hasFuelFilter = !!(filterFuelType || filterFuelYear || filterSettled);
   const displayYear   = filterFuelYear ? Number(filterFuelYear) : currentYear;
   const totals        = computeTotals(visiblePurchases, displayYear);
+
+  const hasUnsettled = purchases.some(p => !p.settled);
 
   const fuelFilters: FilterDef[] = [
     {
@@ -104,14 +148,26 @@ export default function FuelClient({ initialPurchases, currentYear }: Props) {
       value:    filterFuelYear,
       onChange: setFilterFuelYear,
     },
+    ...(hasUnsettled ? [{
+      key:     'settled',
+      label:   'Status',
+      options: [
+        { value: '',          label: 'All' },
+        { value: 'unsettled', label: 'Unsettled' },
+      ],
+      value:    filterSettled,
+      onChange: setFilterSettled,
+    } as FilterDef] : []),
   ];
 
   // ── Add new purchase ───────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const costNum = parseFloat(cost);
+    const costNum     = parseFloat(cost);
+    const discountNum = discountAmount ? parseFloat(discountAmount) : null;
     if (!date) { setFormError('Date is required.'); return; }
     if (isNaN(costNum) || costNum <= 0) { setFormError('Total cost must be a positive number.'); return; }
+    if (discountNum != null && discountNum < 0) { setFormError('Discount must be >= 0.'); return; }
 
     setSubmitting(true);
     setFormError(null);
@@ -120,12 +176,16 @@ export default function FuelClient({ initialPurchases, currentYear }: Props) {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
-          purchase_date: date,
-          fuel_type:     fuelType,
-          total_cost:    costNum,
-          gallons:       gallons  ? parseFloat(gallons)    : null,
-          odometer:      odometer ? parseInt(odometer, 10) : null,
-          notes:         notes.trim() || null,
+          purchase_date:   date,
+          fuel_type:       fuelType,
+          total_cost:      costNum,
+          discount_amount: discountNum,
+          settled,
+          gallons:         gallons  ? parseFloat(gallons)    : null,
+          odometer:        odometer ? parseInt(odometer, 10) : null,
+          full_fill:       fullFill,
+          state_code:      stateCode || null,
+          notes:           notes.trim() || null,
         }),
       });
       if (!res.ok) {
@@ -135,8 +195,12 @@ export default function FuelClient({ initialPurchases, currentYear }: Props) {
       const created = await res.json() as FuelPurchase;
       setPurchases(prev => sortPurchases([created, ...prev]));
       setCost('');
+      setDiscountAmount('');
+      setSettled(true);
       setGallons('');
       setOdometer('');
+      setFullFill(true);
+      setStateCode('');
       setNotes('');
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Something went wrong.');
@@ -148,23 +212,28 @@ export default function FuelClient({ initialPurchases, currentYear }: Props) {
   // ── Edit helpers ──────────────────────────────────────────────────
   const openEdit = (p: FuelPurchase) => {
     setEdit({
-      id:       p.id,
-      fuelType: p.fuel_type,
-      date:     p.purchase_date,
-      cost:     String(p.total_cost),
-      gallons:  p.gallons  != null ? String(p.gallons)  : '',
-      odometer: p.odometer != null ? String(p.odometer) : '',
-      notes:    p.notes ?? '',
+      id:             p.id,
+      fuelType:       p.fuel_type,
+      date:           p.purchase_date,
+      cost:           String(p.total_cost),
+      discountAmount: p.discount_amount != null ? String(p.discount_amount) : '',
+      settled:        Boolean(p.settled),
+      gallons:        p.gallons   != null ? String(p.gallons)   : '',
+      odometer:       p.odometer  != null ? String(p.odometer)  : '',
+      fullFill:       Boolean(p.full_fill),
+      stateCode:      p.state_code ?? '',
+      notes:          p.notes ?? '',
     });
     setConfirmDeleteId(null);
   };
 
-  const upd = (key: keyof EditState, val: string) =>
-    setEdit(prev => prev ? { ...prev, [key]: val } as EditState : prev);
+  const upd = <K extends keyof EditState>(key: K, val: EditState[K]) =>
+    setEdit(prev => prev ? { ...prev, [key]: val } : prev);
 
   const saveEdit = async () => {
     if (!edit) return;
-    const costNum = parseFloat(edit.cost);
+    const costNum     = parseFloat(edit.cost);
+    const discountNum = edit.discountAmount ? parseFloat(edit.discountAmount) : null;
     if (isNaN(costNum) || costNum <= 0) return;
 
     setEditSubmitting(true);
@@ -173,12 +242,16 @@ export default function FuelClient({ initialPurchases, currentYear }: Props) {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
-          purchase_date: edit.date,
-          fuel_type:     edit.fuelType,
-          total_cost:    costNum,
-          gallons:       edit.gallons  ? parseFloat(edit.gallons)    : null,
-          odometer:      edit.odometer ? parseInt(edit.odometer, 10) : null,
-          notes:         edit.notes.trim() || null,
+          purchase_date:   edit.date,
+          fuel_type:       edit.fuelType,
+          total_cost:      costNum,
+          discount_amount: discountNum,
+          settled:         edit.settled,
+          gallons:         edit.gallons  ? parseFloat(edit.gallons)    : null,
+          odometer:        edit.odometer ? parseInt(edit.odometer, 10) : null,
+          full_fill:       edit.fullFill,
+          state_code:      edit.stateCode || null,
+          notes:           edit.notes.trim() || null,
         }),
       });
       if (!res.ok) throw new Error();
@@ -226,8 +299,30 @@ export default function FuelClient({ initialPurchases, currentYear }: Props) {
           </div>
         </div>
 
+        {/* Full fill + Settled toggles */}
+        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 4 }}>
+          <div className="form-group" style={{ margin: 0 }}>
+            <p className="form-label" style={{ marginBottom: 6 }}>Fill</p>
+            <TogglePair
+              value={fullFill}
+              onChange={setFullFill}
+              trueLabel="Full"
+              falseLabel="Partial"
+            />
+          </div>
+          <div className="form-group" style={{ margin: 0 }}>
+            <p className="form-label" style={{ marginBottom: 6 }}>Status</p>
+            <TogglePair
+              value={settled}
+              onChange={setSettled}
+              trueLabel="Settled"
+              falseLabel="Provisional"
+            />
+          </div>
+        </div>
+
         {/* Cost + Date — primary required */}
-        <div style={{ display: 'flex', gap: 12 }}>
+        <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
           <div className="form-group" style={{ flex: 2 }}>
             <label className="form-label" htmlFor="fuel-cost">Total cost ($)</label>
             <input
@@ -255,7 +350,35 @@ export default function FuelClient({ initialPurchases, currentYear }: Props) {
           </div>
         </div>
 
-        {/* Optional: gallons, odometer (Diesel only), notes */}
+        {/* Discount — shown when Provisional OR discount already entered */}
+        {(!settled || discountAmount) && (
+          <div className="form-group">
+            <label className="form-label" htmlFor="fuel-discount">
+              Discount amount ($){' '}
+              <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>TSD Open Roads / rebate</span>
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <input
+                id="fuel-discount"
+                type="number"
+                step="0.01"
+                min="0"
+                className="form-input"
+                style={{ maxWidth: 160 }}
+                value={discountAmount}
+                onChange={e => setDiscountAmount(e.target.value)}
+                placeholder="0.00"
+              />
+              {discountAmount && cost && (
+                <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                  Gross: ${(parseFloat(cost || '0') + parseFloat(discountAmount || '0')).toFixed(2)}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Optional: gallons, odometer (Diesel only), state, notes */}
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <div className="form-group" style={{ flex: '1 1 120px' }}>
             <label className="form-label" htmlFor="fuel-gallons">Gallons</label>
@@ -285,6 +408,20 @@ export default function FuelClient({ initialPurchases, currentYear }: Props) {
               />
             </div>
           )}
+          <div className="form-group" style={{ flex: '1 1 120px' }}>
+            <label className="form-label" htmlFor="fuel-state">State</label>
+            <select
+              id="fuel-state"
+              className="form-input"
+              value={stateCode}
+              onChange={e => setStateCode(e.target.value)}
+            >
+              <option value="">—</option>
+              {states.map(s => (
+                <option key={s.code} value={s.code}>{s.code} — {s.name}</option>
+              ))}
+            </select>
+          </div>
           <div className="form-group" style={{ flex: '3 1 200px' }}>
             <label className="form-label" htmlFor="fuel-notes">Notes</label>
             <input
@@ -317,7 +454,7 @@ export default function FuelClient({ initialPurchases, currentYear }: Props) {
         <div style={{ marginTop: 28 }}>
           <FilterBar
             filters={fuelFilters}
-            onClear={() => { setFilterFuelType(''); setFilterFuelYear(''); }}
+            onClear={() => { setFilterFuelType(''); setFilterFuelYear(''); setFilterSettled(''); }}
             hasActive={hasFuelFilter}
           />
         </div>
@@ -369,12 +506,13 @@ export default function FuelClient({ initialPurchases, currentYear }: Props) {
               {edit?.id === p.id ? (
                 /* EDIT ROW */
                 <div style={{ borderTop: '1px solid var(--border)', padding: '12px 0' }}>
+                  {/* Row 1: type, date, cost, discount, gallons, odometer, state, notes */}
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
                     <select
                       className="form-input"
                       style={{ flex: '1 1 110px' }}
                       value={edit.fuelType}
-                      onChange={e => upd('fuelType', e.target.value)}
+                      onChange={e => upd('fuelType', e.target.value as FuelType)}
                     >
                       {FUEL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
@@ -396,9 +534,19 @@ export default function FuelClient({ initialPurchases, currentYear }: Props) {
                     />
                     <input
                       type="number"
-                      step="0.001"
+                      step="0.01"
+                      min="0"
                       className="form-input"
                       style={{ flex: '1 1 100px' }}
+                      value={edit.discountAmount}
+                      onChange={e => upd('discountAmount', e.target.value)}
+                      placeholder="Discount ($)"
+                    />
+                    <input
+                      type="number"
+                      step="0.001"
+                      className="form-input"
+                      style={{ flex: '1 1 90px' }}
                       value={edit.gallons}
                       onChange={e => upd('gallons', e.target.value)}
                       placeholder="Gallons"
@@ -413,6 +561,17 @@ export default function FuelClient({ initialPurchases, currentYear }: Props) {
                         placeholder="Odometer"
                       />
                     )}
+                    <select
+                      className="form-input"
+                      style={{ flex: '1 1 100px' }}
+                      value={edit.stateCode}
+                      onChange={e => upd('stateCode', e.target.value)}
+                    >
+                      <option value="">State —</option>
+                      {states.map(s => (
+                        <option key={s.code} value={s.code}>{s.code}</option>
+                      ))}
+                    </select>
                     <input
                       type="text"
                       className="form-input"
@@ -423,6 +582,33 @@ export default function FuelClient({ initialPurchases, currentYear }: Props) {
                       maxLength={255}
                     />
                   </div>
+                  {/* Row 2: full fill + settled toggles */}
+                  <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 10 }}>
+                    <div>
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Fill</span>
+                      <TogglePair
+                        value={edit.fullFill}
+                        onChange={v => upd('fullFill', v)}
+                        trueLabel="Full"
+                        falseLabel="Partial"
+                      />
+                    </div>
+                    <div>
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Status</span>
+                      <TogglePair
+                        value={edit.settled}
+                        onChange={v => upd('settled', v)}
+                        trueLabel="Settled"
+                        falseLabel="Provisional"
+                      />
+                    </div>
+                    {edit.discountAmount && edit.cost && (
+                      <div style={{ alignSelf: 'flex-end', fontSize: 13, color: 'var(--text-muted)', paddingBottom: 4 }}>
+                        Gross: ${(parseFloat(edit.cost || '0') + parseFloat(edit.discountAmount || '0')).toFixed(2)}
+                      </div>
+                    )}
+                  </div>
+                  {/* Row 3: action buttons */}
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <button
                       className="btn btn-primary"
@@ -481,6 +667,7 @@ export default function FuelClient({ initialPurchases, currentYear }: Props) {
                     display: 'flex', flexWrap: 'wrap', alignItems: 'baseline',
                     gap: '4px 12px', padding: '10px 0',
                     borderTop: '1px solid var(--border)', cursor: 'pointer',
+                    opacity: p.settled ? 1 : 0.7,
                   }}
                 >
                   <span style={{ fontSize: 13, color: 'var(--text-muted)', flexShrink: 0, width: 90 }}>
@@ -492,6 +679,34 @@ export default function FuelClient({ initialPurchases, currentYear }: Props) {
                   <span style={{ fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
                     ${p.total_cost.toFixed(2)}
                   </span>
+                  {p.discount_amount != null && (
+                    <span style={{ fontSize: 12, color: 'var(--green)', flexShrink: 0 }}>
+                      −${p.discount_amount.toFixed(2)}
+                    </span>
+                  )}
+                  {!p.settled && (
+                    <span style={{
+                      fontSize: 11, fontWeight: 600, color: 'var(--gold-dark)',
+                      border: '1px solid var(--gold-dark)', borderRadius: 3,
+                      padding: '1px 5px', flexShrink: 0,
+                    }}>
+                      provisional
+                    </span>
+                  )}
+                  {!p.full_fill && (
+                    <span style={{
+                      fontSize: 11, color: 'var(--text-muted)',
+                      border: '1px solid var(--border)', borderRadius: 3,
+                      padding: '1px 5px', flexShrink: 0,
+                    }}>
+                      partial
+                    </span>
+                  )}
+                  {p.state_code && (
+                    <span style={{ fontSize: 13, color: 'var(--text-muted)', flexShrink: 0 }}>
+                      {p.state_code}
+                    </span>
+                  )}
                   {p.gallons != null && (
                     <>
                       <span style={{ fontSize: 13, color: 'var(--text-muted)', flexShrink: 0 }}>
@@ -530,7 +745,7 @@ export default function FuelClient({ initialPurchases, currentYear }: Props) {
             <button
               type="button"
               style={{ color: 'var(--gold-dark)', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14 }}
-              onClick={() => { setFilterFuelType(''); setFilterFuelYear(''); }}
+              onClick={() => { setFilterFuelType(''); setFilterFuelYear(''); setFilterSettled(''); }}
             >
               Clear filters
             </button>

@@ -295,7 +295,12 @@ export async function computeReports(year: string): Promise<ReportData> {
     let projectedPaybackDate:  string | null = null;
 
     if (acquisitionCost != null && m.acquisition_date && periodsForMembership.length > 0) {
-      const allMStays     = allStays.filter(s => s.membership_id === m.id);
+      // Filter to stays on or after acquisition_date — pre-acquisition nights don't count
+      // toward payback of a purchase that hadn't happened yet.
+      const acqDateStr    = m.acquisition_date;
+      const allMStays     = allStays.filter(
+        s => s.membership_id === m.id && s.arrival >= acqDateStr
+      );
       const allNightsUsed = allMStays.reduce((sum, s) => sum + (s.nights || 0), 0);
       const allMSpend     = allMStays.reduce((sum, s) => sum + (s.total_charged || 0), 0);
       const allStayCount  = allMStays.length;

@@ -151,6 +151,20 @@ The AR instance exists to measure unprompted behavior against pre-committed gate
 
 ---
 
+## [RESOLVED] Capital payback panel counted pre-acquisition nights as savings
+
+**Status:** Fixed (same commit as the reports layout reorder)
+
+**Symptom:** Thousand Trails showed ~78% of acquisition cost recovered on a purchase that was only ~5 months old — obviously wrong. The capital payback panel was credit-counting two years of TT camp-pass stays toward a membership purchased in 2026.
+
+**Root cause:** The `allMStays` filter inside the capital computation block used `membership_id` only. For Thousand Trails, the owner held a camp pass from ~2024-03-01 before purchasing Elite Connections (the capital membership) on 2026-03-04. Every night since 2024 was flagged as a stay on that membership ID, so all of it inflated `lifetimeGross` and `cumulativeNetSavings`, understated `acquisitionRemaining`, and pulled `projectedPaybackDate` in far too close.
+
+**Fix:** Added `s.arrival >= acqDateStr` to the `allMStays` filter. Stays before `acquisition_date` are excluded from the lifetime savings computation. `acqDate` used for `countCalendarMonths` derives from the same `m.acquisition_date` string — no divergence.
+
+**Key lesson:** Any lifetime / capital metric keyed to an acquisition event must scope its underlying activity to on-or-after that event. `membership_id` alone is not sufficient when a membership's terms or ownership changed at a point in time.
+
+---
+
 ## [RESOLVED] Membership fee basis derived from stay-years instead of tenure
 
 **Status:** Fixed in Migration 13 (`sql/13_membership_tenure.sql`, shipped in `feat: migration 13 — membership tenure + acquisition cost`)

@@ -24,6 +24,7 @@ export default function SolarROI({ data, year }: Props) {
   const {
     buckets, pctDryRecorded, lifetimeDryNights,
     avgPaidPerNight, staysWithHookup, totalStaysSolar,
+    projectedUpcomingDryNights,
   } = data;
 
   const systemCost    = solarSystemTotal();
@@ -65,6 +66,28 @@ export default function SolarROI({ data, year }: Props) {
           label={`toward $${systemCost.toLocaleString()} system`}
         />
       </div>
+
+      {/* Upcoming-stays projection — only rendered when booked dry nights exist */}
+      {projectedUpcomingDryNights != null && projectedUpcomingDryNights > 0 && (
+        <p style={{
+          fontSize: 13, color: 'var(--text-muted)',
+          margin: '0 0 20px',
+          padding: '10px 14px',
+          background: 'var(--surface-2)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-sm)',
+        }}>
+          Plus{' '}
+          <strong style={{ color: 'var(--text)' }}>
+            {projectedUpcomingDryNights} more dry night{projectedUpcomingDryNights !== 1 ? 's' : ''}
+          </strong>
+          {' '}currently booked — would add{' '}
+          <strong style={{ color: 'var(--text)' }}>
+            ${Math.round(projectedUpcomingDryNights * offsetRate).toLocaleString()}
+          </strong>
+          {' '}toward payback if completed as planned.
+        </p>
+      )}
 
       {/* Horizontal bar chart */}
       <div style={{ marginBottom: 12 }}>

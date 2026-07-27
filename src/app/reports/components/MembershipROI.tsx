@@ -133,6 +133,34 @@ export default function MembershipROI({ data, year }: Props) {
               label="Projected payback (YYYY-MM)"
             />
           </div>
+
+          {/* Upcoming-stays projection — secondary, only when booked stays exist */}
+          {row.projectedNightsUpcoming != null && row.projectedNightsUpcoming > 0 && (
+            <div style={{
+              marginTop: 14,
+              paddingTop: 12,
+              borderTop: '1px solid var(--border)',
+              fontSize: 13,
+              color: 'var(--text-muted)',
+            }}>
+              <span style={{ fontWeight: 600, color: 'var(--text-2)' }}>
+                If upcoming stays complete as planned
+              </span>
+              {' '}({row.projectedNightsUpcoming} booked nights):{' '}
+              {row.projectedCumulativeIfBooked != null && (
+                <>
+                  {fmt(Math.max(0, row.projectedCumulativeIfBooked))} recovered
+                  {' · '}
+                  {row.projectedRemainingIfBooked === 0
+                    ? <span style={{ color: 'var(--green)', fontWeight: 600 }}>
+                        paid off by {row.projectedPaybackDateIfBooked ?? '—'}
+                      </span>
+                    : <>{fmt(row.projectedRemainingIfBooked!)} remaining</>
+                  }
+                </>
+              )}
+            </div>
+          )}
         </div>
       ))}
 

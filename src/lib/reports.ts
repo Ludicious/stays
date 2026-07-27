@@ -1,4 +1,5 @@
 import { getPool } from '@/lib/db';
+import { sweepStaleStatuses } from '@/lib/stayStatus';
 import type { Stay, Membership, MembershipPeriod } from '@/lib/types';
 import type { RowDataPacket } from 'mysql2';
 import { SOLAR_SYSTEM } from '@/lib/solar';
@@ -68,6 +69,10 @@ function proratedFeeForPeriods(
 export async function computeReports(year: string): Promise<ReportData> {
   const pool = getPool();
 
+  // Flip any stale pre-departure statuses to 'Stayed' before reading, so all
+  // downstream metrics operate on accurate status values.
+  await sweepStaleStatuses(pool);
+
   const [[staysRows], [membershipRows]] = await Promise.all([
     pool.query<RowDataPacket[]>('SELECT * FROM stays ORDER BY arrival ASC'),
     pool.query<RowDataPacket[]>('SELECT * FROM memberships ORDER BY name ASC'),
@@ -87,9 +92,22 @@ export async function computeReports(year: string): Promise<ReportData> {
   const allStays    = staysRows    as Stay[];
   const memberships = membershipRows as Membership[];
 
+  // today used both for outstandingBalance (unchanged) and for upcomingStays derivation
+  const today = new Date().toISOString().slice(0, 10);
+
+  // completed = nights actually taken; upcoming = booked but not yet departed.
+  // Cancelled excluded from both — cancellation is intentional and never auto-cleared.
+  const completedStays = allStays.filter(s => s.status === 'Stayed');
+  const upcomingStays  = allStays.filter(s =>
+    (s.status === 'Booked' || s.status === 'Deposit Paid' || s.status === 'Paid in Full')
+    && s.departure >= today
+  );
+
+  // All report metrics use completedStays as their base so booked-but-not-taken
+  // and cancelled stays never pollute actuals.
   const filteredStays = year === 'all'
-    ? allStays
-    : allStays.filter(s => s.arrival.startsWith(year));
+    ? completedStays
+    : completedStays.filter(s => s.arrival.startsWith(year));
 
   /* ── Big Picture ──────────────────────────────────────────────── */
   const totalNights = filteredStays.reduce((sum, s) => sum + (s.nights || 0), 0);
@@ -130,8 +148,7 @@ export async function computeReports(year: string): Promise<ReportData> {
     }
   }
 
-  // Outstanding balance — live from today, NOT filtered by year
-  const today = new Date().toISOString().slice(0, 10);
+  // Outstanding balance — live from today, NOT filtered by year (intentionally reads allStays)
   const outstandingBalance = allStays
     .filter(s =>
       (s.status === 'Booked' || s.status === 'Deposit Paid') &&
@@ -180,10 +197,11 @@ export async function computeReports(year: string): Promise<ReportData> {
   const stayTypes: StayTypeData = { pie, avgCostByType };
 
   /* ── Trends ───────────────────────────────────────────────────── */
-  const allYears = [...new Set(allStays.map(s => s.arrival.slice(0, 4)))].sort();
+  // Year list and historical charts use completedStays — upcoming years add no useful filter option
+  const allYears = [...new Set(completedStays.map(s => s.arrival.slice(0, 4)))].sort();
 
   const yearTotalsMap = new Map<string, number>();
-  for (const s of allStays) {
+  for (const s of completedStays) {
     const y = s.arrival.slice(0, 4);
     yearTotalsMap.set(y, (yearTotalsMap.get(y) ?? 0) + (s.total_charged || 0));
   }
@@ -191,7 +209,7 @@ export async function computeReports(year: string): Promise<ReportData> {
 
   const mbyMap = new Map<number, Record<string, number>>();
   for (let m = 1; m <= 12; m++) mbyMap.set(m, {});
-  for (const s of allStays) {
+  for (const s of completedStays) {
     const y = s.arrival.slice(0, 4);
     const m = parseInt(s.arrival.slice(5, 7), 10);
     const row = mbyMap.get(m)!;
@@ -248,8 +266,8 @@ export async function computeReports(year: string): Promise<ReportData> {
       paidEligible.reduce((sum, s) => sum + (s.nights || 0), 0)
     : 0;
 
-  // All-time avg paid rate for lifetime capital computation (ignores year filter)
-  const allPaidEligible = allStays.filter(s => (s.total_charged || 0) > 0 && (s.nights || 0) > 0);
+  // All-time avg paid rate for lifetime capital computation (ignores year filter, completed only)
+  const allPaidEligible = completedStays.filter(s => (s.total_charged || 0) > 0 && (s.nights || 0) > 0);
   const allAvgPaidPerNight = allPaidEligible.length > 0
     ? allPaidEligible.reduce((sum, s) => sum + (s.total_charged || 0), 0) /
       allPaidEligible.reduce((sum, s) => sum + (s.nights || 0), 0)
@@ -295,18 +313,21 @@ export async function computeReports(year: string): Promise<ReportData> {
 
     const effectivePerNight = nightsUsed > 0 ? proratedFee / nightsUsed : null;
 
-    // ── Capital computation (lifetime, allStays, ignores year filter) ──
+    // ── Capital computation (lifetime, completedStays scoped to acquisition_date+) ──
     // Only computed when acquisition_cost is set AND periods exist (both require migration 13)
     const acquisitionCost = m.acquisition_cost ?? null;
-    let cumulativeNetSavings:  number | null = null;
-    let acquisitionRemaining:  number | null = null;
-    let projectedPaybackDate:  string | null = null;
+    let cumulativeNetSavings:         number | null = null;
+    let acquisitionRemaining:         number | null = null;
+    let projectedPaybackDate:         string | null = null;
+    let projectedNightsUpcoming:      number | null = null;
+    let projectedCumulativeIfBooked:  number | null = null;
+    let projectedRemainingIfBooked:   number | null = null;
+    let projectedPaybackDateIfBooked: string | null = null;
 
     if (acquisitionCost != null && m.acquisition_date && periodsForMembership.length > 0) {
-      // Filter to stays on or after acquisition_date — pre-acquisition nights don't count
-      // toward payback of a purchase that hadn't happened yet.
+      // Filter to completed stays on or after acquisition_date only
       const acqDateStr    = m.acquisition_date;
-      const allMStays     = allStays.filter(
+      const allMStays     = completedStays.filter(
         s => s.membership_id === m.id && s.arrival >= acqDateStr
       );
       const allNightsUsed = allMStays.reduce((sum, s) => sum + (s.nights || 0), 0);
@@ -343,6 +364,51 @@ export async function computeReports(year: string): Promise<ReportData> {
           }
         }
       }
+
+      // ── Upcoming projection (if upcoming stays complete as planned) ──
+      const upcomingMStays = upcomingStays.filter(
+        s => s.membership_id === m.id && s.arrival >= acqDateStr
+      );
+      if (upcomingMStays.length > 0) {
+        projectedNightsUpcoming = upcomingMStays.reduce((sum, s) => sum + (s.nights || 0), 0);
+
+        // Value upcoming nights using the same savings method as the completed calc
+        let upcomingValue = 0;
+        if (m.savings_method === 'free_vs_avg') {
+          upcomingValue = projectedNightsUpcoming * allAvgPaidPerNight;
+        } else if (m.savings_method === 'percent_off' && m.discount_percent != null) {
+          const pct = m.discount_percent / 100;
+          const upcomingSpend = upcomingMStays.reduce((sum, s) => sum + (s.total_charged || 0), 0);
+          upcomingValue = (upcomingSpend / (1 - pct)) * pct;
+        } else if (m.savings_method === 'per_stay_value' && m.per_stay_value != null) {
+          upcomingValue = upcomingMStays.length * m.per_stay_value;
+        }
+
+        projectedCumulativeIfBooked = cumulativeNetSavings + upcomingValue;
+        projectedRemainingIfBooked  = Math.max(0, acquisitionCost - projectedCumulativeIfBooked);
+
+        if (projectedRemainingIfBooked === 0) {
+          // Find the specific stay that crosses the payback threshold
+          const sortedUpcoming = [...upcomingMStays].sort((a, b) => a.arrival.localeCompare(b.arrival));
+          let cumSoFar = cumulativeNetSavings;
+          for (const s of sortedUpcoming) {
+            let stayValue = 0;
+            if (m.savings_method === 'free_vs_avg') {
+              stayValue = (s.nights || 0) * allAvgPaidPerNight;
+            } else if (m.savings_method === 'percent_off' && m.discount_percent != null) {
+              const pct = m.discount_percent / 100;
+              stayValue = ((s.total_charged || 0) / (1 - pct)) * pct;
+            } else if (m.savings_method === 'per_stay_value' && m.per_stay_value != null) {
+              stayValue = m.per_stay_value;
+            }
+            cumSoFar += stayValue;
+            if (cumSoFar >= acquisitionCost) {
+              projectedPaybackDateIfBooked = s.arrival.slice(0, 7); // YYYY-MM
+              break;
+            }
+          }
+        }
+      }
     }
 
     return {
@@ -359,6 +425,10 @@ export async function computeReports(year: string): Promise<ReportData> {
       cumulativeNetSavings,
       acquisitionRemaining,
       projectedPaybackDate,
+      projectedNightsUpcoming,
+      projectedCumulativeIfBooked,
+      projectedRemainingIfBooked,
+      projectedPaybackDateIfBooked,
     };
   });
 
@@ -396,9 +466,14 @@ export async function computeReports(year: string): Promise<ReportData> {
     ? (solarDryNights / totalRecordedNights) * 100
     : 0;
 
-  const lifetimeDryNights = allStays
+  const lifetimeDryNights = completedStays
     .filter(s => s.hookup_type === 'Dry' && s.arrival >= SOLAR_SYSTEM.in_service_date)
     .reduce((sum, s) => sum + (s.nights || 0), 0);
+
+  const upcomingDryNightsRaw = upcomingStays
+    .filter(s => s.hookup_type === 'Dry' && s.arrival >= SOLAR_SYSTEM.in_service_date)
+    .reduce((sum, s) => sum + (s.nights || 0), 0);
+  const projectedUpcomingDryNights = upcomingDryNightsRaw > 0 ? upcomingDryNightsRaw : null;
 
   const solarBuckets: SolarBuckets = {
     fullNights:     solarFullNights,
@@ -414,6 +489,7 @@ export async function computeReports(year: string): Promise<ReportData> {
     totalStaysSolar,
     avgPaidPerNight,
     lifetimeDryNights,
+    projectedUpcomingDryNights,
   };
 
   /* ── Stay Length Buckets (Paid stays only) ────────────────────── */

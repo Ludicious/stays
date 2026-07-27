@@ -74,6 +74,11 @@ export interface MembershipRow {
   cumulativeNetSavings: number | null; // lifetime: gross savings − total dues since acquisition
   acquisitionRemaining: number | null; // max(0, acquisitionCost − cumulativeNetSavings)
   projectedPaybackDate: string | null; // YYYY-MM extrapolated from realized monthly savings rate
+  // Upcoming-projection fields — null when acquisition_cost is null
+  projectedNightsUpcoming:      number | null;
+  projectedCumulativeIfBooked:  number | null;
+  projectedRemainingIfBooked:   number | null;
+  projectedPaybackDateIfBooked: string | null; // YYYY-MM of stay that crosses payback threshold
 }
 
 export interface MembershipData {
@@ -104,6 +109,7 @@ export interface SolarData {
   totalStaysSolar:     number;
   avgPaidPerNight:     number;
   lifetimeDryNights:   number;
+  projectedUpcomingDryNights: number | null; // upcoming booked Dry stays after in_service_date
 }
 
 export interface ReportData {

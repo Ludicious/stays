@@ -139,10 +139,18 @@ export async function computeReports(year: string): Promise<ReportData> {
     )
     .reduce((sum, s) => sum + (s.balance_due || 0), 0);
 
+  const paidNightsAll       = filteredStays.filter(s => s.stay_type === 'Paid').reduce((sum, s) => sum + (s.nights || 0), 0);
+  const membershipNightsAll = filteredStays.filter(s => s.stay_type === 'Membership').reduce((sum, s) => sum + (s.nights || 0), 0);
+  const freeNightsAll       = totalNights - paidNightsAll - membershipNightsAll;
+  const pctOf = (n: number) => totalNights > 0 ? (n / totalNights) * 100 : 0;
+
   const bigPicture: BigPictureData = {
     totalNights, totalSpend, avgCostPaidOnly, avgCostAllStays,
     freeNightsPercent, mostExpensiveStay,
     mostExpensivePerNight, cheapestPaidPerNight, outstandingBalance,
+    paidPercent:       pctOf(paidNightsAll),
+    membershipPercent: pctOf(membershipNightsAll),
+    freePercent:       pctOf(freeNightsAll),
   };
 
   /* ── Stay Types ───────────────────────────────────────────────── */

@@ -90,6 +90,13 @@ export default function BigPicture({ data, year }: Props) {
       link:       null,
       valueColor: data.outstandingBalance > 0 ? 'var(--amber)' : undefined,
     },
+    {
+      label:      'Stay mix',
+      value:      `${data.paidPercent.toFixed(0)}% paid · ${data.membershipPercent.toFixed(0)}% mem · ${data.freePercent.toFixed(0)}% free`,
+      sub:        'by nights',
+      link:       null,
+      valueColor: undefined,
+    },
   ];
 
   return (

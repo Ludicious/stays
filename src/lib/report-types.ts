@@ -26,6 +26,10 @@ export interface BigPictureData {
   mostExpensivePerNight: { id: number; name: string; perNight: number } | null;
   cheapestPaidPerNight:  { id: number; name: string; perNight: number } | null;
   outstandingBalance:    number;   // live — not filtered by year
+  // Stay-mix percentages (by nights) — Paid / Membership / everything else
+  paidPercent:        number;
+  membershipPercent:  number;
+  freePercent:        number;
 }
 
 export interface StayTypeData {

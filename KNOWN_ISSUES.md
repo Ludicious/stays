@@ -151,6 +151,12 @@ The AR instance exists to measure unprompted behavior against pre-committed gate
 
 ---
 
+## [RESOLVED] Reports page layout reordered to reduce scroll length
+
+Stay-type breakdown (pie + bar chart) replaced with a compact "Stay mix" stat card in the Big Picture grid. Geography table made collapsible (default collapsed, summary line visible). SleepingPattern.tsx removed. Fuel report slot reserved between Big Picture and Trends for the upcoming fuel reporting session. No data or calculation changes.
+
+---
+
 ## [RESOLVED] Capital payback panel counted pre-acquisition nights as savings
 
 **Status:** Fixed (same commit as the reports layout reorder)

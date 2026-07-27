@@ -224,6 +224,14 @@ Efficiency metrics (MPG, cost/mile) use bracket logic between full, odometer'd D
 
 ---
 
+## [RESOLVED] Reports page layout — fuel report slot filled
+
+**Status:** Shipped (`FuelReport.tsx`, wired in `reports/page.tsx` between Big Picture and Trends)
+
+Fuel report renders: headline stats (total spend, gallons, all-in $/night, avg $/gallon), efficiency box (MPG + cost/mile from bracket logic), spend by fuel type (horizontal bars), spend by state (table), monthly spend bar chart, and a savings/provisional notice line. Efficiency data will remain sparse until more odometer-logged full Diesel fill-ups accumulate — the panel surfaces "not enough data yet" rather than a blank or a misleading number. See `[CONVENTIONS] Fuel total_cost is settled net; discount_amount is display-only` for the data rules this panel relies on.
+
+---
+
 ## [PLANNED] Multi-vehicle fuel tracking
 
 Current schema assumes one vehicle — validated correct for this household (single truck, always the same tank and odometer). A household running a motorhome + toad would need a `vehicles` table and a `vehicle_id` FK on `fuel_purchases`, with MPG bracketing partitioned by vehicle. Without it, fills from two different vehicles could be silently paired into a nonsense MPG segment. Not built: no real multi-vehicle household to validate the UX against.

@@ -1,12 +1,13 @@
 import { getPool } from '@/lib/db';
 import { sweepStaleStatuses } from '@/lib/stayStatus';
-import type { Stay, Membership, MembershipPeriod } from '@/lib/types';
+import type { Stay, Membership, MembershipPeriod, FuelPurchase } from '@/lib/types';
 import type { RowDataPacket } from 'mysql2';
 import { SOLAR_SYSTEM } from '@/lib/solar';
 import type {
   BigPictureData, StayTypeData, TrendsData,
   GeographyRow, MembershipRow, MembershipData,
   LengthBucket, SolarBuckets, SolarData, ReportData,
+  FuelData, FuelEfficiencyData,
 } from '@/lib/report-types';
 
 // Re-export everything from report-types so existing imports keep working
@@ -14,6 +15,7 @@ export type {
   BigPictureData, StayTypeData, TrendsData, MonthlyByYearRow,
   GeographyRow, MembershipRow, MembershipData, LengthBucket,
   SolarBuckets, SolarData, ReportData,
+  FuelData, FuelSpendRow, FuelStateRow, FuelEfficiencyData, FuelSavingsData,
 } from '@/lib/report-types';
 export { STAY_TYPE_COLORS, YEAR_COLORS } from '@/lib/report-types';
 
@@ -65,6 +67,50 @@ function proratedFeeForPeriods(
   return { fee: totalFee, months: totalMonths };
 }
 
+function computeFuelEfficiency(rows: FuelPurchase[]): FuelEfficiencyData {
+  const diesel = rows
+    .filter(r => r.fuel_type === 'Diesel')
+    .sort((a, b) => a.purchase_date.localeCompare(b.purchase_date));
+
+  const endpoints = diesel
+    .map((r, i) => ({ r, i }))
+    .filter(({ r }) => r.odometer != null && r.full_fill);
+
+  if (endpoints.length < 2) {
+    return { hasEnoughData: false, avgMpg: null, avgCostPerMile: null, segmentCount: 0, totalMilesTracked: 0 };
+  }
+
+  let totalMiles = 0, totalGallonsInBrackets = 0, totalCostInBrackets = 0, segments = 0;
+
+  for (let k = 0; k < endpoints.length - 1; k++) {
+    const start = endpoints[k];
+    const end   = endpoints[k + 1];
+    const miles = (end.r.odometer as number) - (start.r.odometer as number);
+    if (miles <= 0) continue; // guard against duplicate / bad odometer entries
+
+    const bracket    = diesel.slice(start.i, end.i + 1); // inclusive of both endpoints
+    const gallonsSum = bracket.reduce((sum, r) => sum + (r.gallons || 0), 0);
+    const costSum    = bracket.reduce((sum, r) => sum + r.total_cost, 0);
+
+    totalMiles             += miles;
+    totalGallonsInBrackets += gallonsSum;
+    totalCostInBrackets    += costSum;
+    segments++;
+  }
+
+  if (segments === 0 || totalGallonsInBrackets === 0) {
+    return { hasEnoughData: false, avgMpg: null, avgCostPerMile: null, segmentCount: 0, totalMilesTracked: 0 };
+  }
+
+  return {
+    hasEnoughData:     true,
+    avgMpg:            totalMiles / totalGallonsInBrackets,
+    avgCostPerMile:    totalCostInBrackets / totalMiles,
+    segmentCount:      segments,
+    totalMilesTracked: totalMiles,
+  };
+}
+
 /* ── Core computation (server-only) ─────────────────────────────── */
 export async function computeReports(year: string): Promise<ReportData> {
   const pool = getPool();
@@ -73,9 +119,10 @@ export async function computeReports(year: string): Promise<ReportData> {
   // downstream metrics operate on accurate status values.
   await sweepStaleStatuses(pool);
 
-  const [[staysRows], [membershipRows]] = await Promise.all([
+  const [[staysRows], [membershipRows], [fuelRows]] = await Promise.all([
     pool.query<RowDataPacket[]>('SELECT * FROM stays ORDER BY arrival ASC'),
     pool.query<RowDataPacket[]>('SELECT * FROM memberships ORDER BY name ASC'),
+    pool.query<RowDataPacket[]>('SELECT * FROM fuel_purchases ORDER BY purchase_date ASC'),
   ]);
 
   // membership_periods may not exist before migration 13 is run; degrade gracefully
@@ -89,8 +136,9 @@ export async function computeReports(year: string): Promise<ReportData> {
     // Table not yet created; falls back to legacy yearsCount calculation
   }
 
-  const allStays    = staysRows    as Stay[];
+  const allStays    = staysRows      as Stay[];
   const memberships = membershipRows as Membership[];
+  const allFuel     = fuelRows       as FuelPurchase[];
 
   // today used both for outstandingBalance (unchanged) and for upcomingStays derivation
   const today = new Date().toISOString().slice(0, 10);
@@ -108,6 +156,11 @@ export async function computeReports(year: string): Promise<ReportData> {
   const filteredStays = year === 'all'
     ? completedStays
     : completedStays.filter(s => s.arrival.startsWith(year));
+
+  // Fuel: every row represents fuel already purchased — no status filtering needed.
+  const filteredFuel = year === 'all'
+    ? allFuel
+    : allFuel.filter(f => f.purchase_date.startsWith(year));
 
   /* ── Big Picture ──────────────────────────────────────────────── */
   const totalNights = filteredStays.reduce((sum, s) => sum + (s.nights || 0), 0);
@@ -520,6 +573,81 @@ export async function computeReports(year: string): Promise<ReportData> {
     };
   });
 
+  /* ── Fuel ────────────────────────────────────────────────────── */
+  const fuelTotalSpend   = filteredFuel.reduce((sum, f) => sum + f.total_cost, 0);
+  const fuelTotalGallons = filteredFuel.reduce((sum, f) => sum + (f.gallons || 0), 0);
+
+  // By fuel type — all types included (Diesel, DEF, Gasoline, Propane, …)
+  const byFuelTypeMap = new Map<string, { gallons: number; spend: number }>();
+  for (const f of filteredFuel) {
+    const prev = byFuelTypeMap.get(f.fuel_type) ?? { gallons: 0, spend: 0 };
+    byFuelTypeMap.set(f.fuel_type, {
+      gallons: prev.gallons + (f.gallons || 0),
+      spend:   prev.spend   + f.total_cost,
+    });
+  }
+  const byFuelType = Array.from(byFuelTypeMap.entries())
+    .map(([fuelType, { gallons, spend }]) => ({
+      fuelType, gallons, spend,
+      avgPrice: gallons > 0 ? spend / gallons : null,
+    }))
+    .sort((a, b) => b.spend - a.spend);
+
+  // By state — null state_code rows silently excluded
+  const byStateMap = new Map<string, { gallons: number; spend: number; fillCount: number }>();
+  for (const f of filteredFuel) {
+    if (!f.state_code) continue;
+    const prev = byStateMap.get(f.state_code) ?? { gallons: 0, spend: 0, fillCount: 0 };
+    byStateMap.set(f.state_code, {
+      gallons:   prev.gallons   + (f.gallons || 0),
+      spend:     prev.spend     + f.total_cost,
+      fillCount: prev.fillCount + 1,
+    });
+  }
+  const byState = Array.from(byStateMap.entries())
+    .map(([stateCode, { gallons, spend, fillCount }]) => ({ stateCode, gallons, spend, fillCount }))
+    .sort((a, b) => b.spend - a.spend);
+
+  // By month — grouped by YYYY-MM, displayed as "Jan '24" (all) or "Jan" (specific year)
+  const fuelMonthMap = new Map<string, number>(); // YYYY-MM → spend
+  for (const f of filteredFuel) {
+    const ym = f.purchase_date.slice(0, 7);
+    fuelMonthMap.set(ym, (fuelMonthMap.get(ym) ?? 0) + f.total_cost);
+  }
+  const byMonth: { month: string; spend: number }[] = year === 'all'
+    ? Array.from(fuelMonthMap.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([ym, spend]) => ({
+          month: `${MONTH_LABELS[parseInt(ym.slice(5, 7), 10) - 1]} '${ym.slice(2, 4)}`,
+          spend,
+        }))
+    : Array.from({ length: 12 }, (_, i) => ({
+        month: MONTH_LABELS[i],
+        spend: fuelMonthMap.get(`${year}-${String(i + 1).padStart(2, '0')}`) ?? 0,
+      }));
+
+  // All-in cost per night: fuel + lodging spend over lodging nights (computed after bigPicture)
+  const allInCostPerNight = bigPicture.totalNights > 0
+    ? (fuelTotalSpend + bigPicture.totalSpend) / bigPicture.totalNights
+    : null;
+
+  // Savings: discount only confirmed on settled rows
+  const totalDiscountSettled = filteredFuel
+    .filter(f => f.settled)
+    .reduce((sum, f) => sum + (f.discount_amount || 0), 0);
+  const unsettledCount = filteredFuel.filter(f => !f.settled).length;
+
+  const fuel: FuelData = {
+    totalSpend:        fuelTotalSpend,
+    totalGallons:      fuelTotalGallons,
+    byFuelType,
+    byState,
+    byMonth,
+    allInCostPerNight,
+    efficiency:        computeFuelEfficiency(filteredFuel),
+    savings:           { totalDiscountSettled, unsettledCount },
+  };
+
   return {
     year,
     bigPicture,
@@ -529,5 +657,6 @@ export async function computeReports(year: string): Promise<ReportData> {
     memberships: membershipData,
     lengthBuckets,
     solar,
+    fuel,
   };
 }

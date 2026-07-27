@@ -112,6 +112,44 @@ export interface SolarData {
   projectedUpcomingDryNights: number | null; // upcoming booked Dry stays after in_service_date
 }
 
+export interface FuelSpendRow {
+  fuelType:  string;
+  gallons:   number;
+  spend:     number;
+  avgPrice:  number | null; // spend / gallons; null when gallons is 0
+}
+
+export interface FuelStateRow {
+  stateCode: string;
+  gallons:   number;
+  spend:     number;
+  fillCount: number;
+}
+
+export interface FuelEfficiencyData {
+  hasEnoughData:     boolean;  // false when fewer than 2 qualifying bracket endpoints
+  avgMpg:            number | null;
+  avgCostPerMile:    number | null;
+  segmentCount:      number;
+  totalMilesTracked: number;
+}
+
+export interface FuelSavingsData {
+  totalDiscountSettled: number;  // sum of discount_amount where settled = 1 only
+  unsettledCount:       number;  // provisional rows not yet confirmed
+}
+
+export interface FuelData {
+  totalSpend:        number;
+  totalGallons:      number;
+  byFuelType:        FuelSpendRow[];
+  byState:           FuelStateRow[];
+  byMonth:           { month: string; spend: number }[];
+  allInCostPerNight: number | null; // (fuel spend + lodging spend) / lodging nights
+  efficiency:        FuelEfficiencyData;
+  savings:           FuelSavingsData;
+}
+
 export interface ReportData {
   year:          string;
   bigPicture:    BigPictureData;
@@ -121,4 +159,5 @@ export interface ReportData {
   memberships:   MembershipData;
   lengthBuckets: LengthBucket[];
   solar:         SolarData;
+  fuel:          FuelData;
 }

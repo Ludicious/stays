@@ -1,6 +1,7 @@
 import { computeReports } from '@/lib/reports';
 import YearFilter    from './components/YearFilter';
 import BigPicture    from './components/BigPicture';
+import FuelReport    from './components/FuelReport';
 import Trends        from './components/Trends';
 import Geography     from './components/Geography';
 import MembershipROI from './components/MembershipROI';
@@ -23,9 +24,9 @@ export default async function ReportsPage({ searchParams }: Props) {
         <YearFilter year={year} years={data.trends.years} />
       </div>
 
-      <BigPicture data={data.bigPicture} year={year} />
-      {/* TODO: <FuelReport /> renders here once built — see KNOWN_ISSUES.md */}
-      <Trends     data={data.trends}     year={year} />
+      <BigPicture  data={data.bigPicture} year={year} />
+      <FuelReport  data={data.fuel}      year={year} />
+      <Trends      data={data.trends}    year={year} />
       <Geography  data={data.geography} />
       <MembershipROI data={data.memberships} year={year} />
       <SolarROI   data={data.solar}      year={year} />

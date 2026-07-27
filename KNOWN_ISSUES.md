@@ -151,6 +151,29 @@ The AR instance exists to measure unprompted behavior against pre-committed gate
 
 ---
 
+## [RESOLVED] Reports counted booked-and-cancelled stays as completed activity
+
+**Status:** Fixed (Stage 0–1 of completed-vs-upcoming scoping session)
+
+**Symptom:** Every report panel except `outstandingBalance` ran against the full unfiltered `stays` table. A Booked trip two months out had its nights, spend, and membership savings counted as if it had already happened. A Cancelled stay with a forfeited non-refundable deposit would also pollute all metrics if the row was kept for record rather than deleted.
+
+**Root cause:** `computeReports()` ran `SELECT * FROM stays` with no `status` filter, then treated every row as completed activity. The `outstandingBalance` block was the only exception — it already filtered on `status` correctly.
+
+**Fix:**
+- *Stage 0:* `sweepStaleStatuses()` helper (`src/lib/stayStatus.ts`) runs an opportunistic UPDATE at the top of `computeReports()` and in the stays list/detail GET routes, flipping departed-but-still-Booked rows to `Stayed` so the status field itself stays truthful. Cancelled rows are never touched by this sweep.
+- *Stage 1:* `computeReports()` derives `completedStays` (`status = 'Stayed'`) and `upcomingStays` (Booked/Deposit Paid/Paid in Full + `departure >= today`) immediately after loading `allStays`. Every downstream metric was switched to `completedStays` (or its year-filtered `filteredStays` derivative). `allStays` is kept only for `outstandingBalance`, which already worked correctly.
+- *Stages 2–3:* Additive upcoming-projection lines on the Membership capital panel and Solar ROI, clearly labelled "if upcoming stays complete as planned." They never replace or merge into the completed-only figures.
+
+**Key lesson:** Any report that mixes "planned" and "actual" data needs an explicit, named boundary between the two. A status field alone isn't enough if nothing keeps it current — hence the sweep helper rather than trusting that every stay gets manually flipped.
+
+---
+
+## [PLANNED] Forfeited-deposit loss tracking
+
+When a stay is cancelled with a non-refundable deposit already paid, that spend is currently invisible to every report: correctly excluded from nights-used and savings math (no nights taken), but there's no dedicated view of cumulative money lost to cancellations. Future scope: a small "cancelled trip cost" figure, kept entirely separate from nights-based reporting so it never inflates or deflates any existing metric.
+
+---
+
 ## [RESOLVED] Reports page layout reordered to reduce scroll length
 
 Stay-type breakdown (pie + bar chart) replaced with a compact "Stay mix" stat card in the Big Picture grid. Geography table made collapsible (default collapsed, summary line visible). SleepingPattern.tsx removed. Fuel report slot reserved between Big Picture and Trends for the upcoming fuel reporting session. No data or calculation changes.

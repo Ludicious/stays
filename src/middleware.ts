@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 import { verifySessionToken, COOKIE_NAME } from '@/lib/auth';
 
 // Paths that don't require authentication
-const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/logout'];
+const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/logout', '/api/next-stay'];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
